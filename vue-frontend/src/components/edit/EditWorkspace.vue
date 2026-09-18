@@ -1114,7 +1114,7 @@ function handleResetCurrentBubble(index: number): void {
   
   // 使用初始状态的深拷贝来更新当前气泡
   const clonedState = JSON.parse(JSON.stringify(initialState))
-  bubbleStore.updateBubble(index, clonedState)
+  bubbleStore.updateBubble(index, clonedState, { markManual: false })
   console.log(`气泡 #${index + 1} 已重置到初始状态`)
   showToast('气泡已重置', 'success')
   
@@ -1186,7 +1186,7 @@ async function handleReTranslateBubble(index: number): Promise<void> {
         console.log(`翻译结果已过期，忽略气泡 #${index + 1} 的更新`)
         return
       }
-      bubbleStore.updateBubble(index, { translatedText: response.data.translated_text })
+      bubbleStore.updateBubble(index, { translatedText: response.data.translated_text }, { markManual: false })
       console.log(`翻译成功: "${response.data.translated_text}"`)
       if (response.data.warnings && response.data.warnings.length > 0) {
         showToast(`有 ${response.data.warnings.length} 处术语未遵守`, 'warning')

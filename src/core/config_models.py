@@ -23,6 +23,29 @@ from src.shared import constants
 from src.core.ocr_types import OcrResult
 
 
+# Kept deliberately small and UI-neutral. These are the only persisted lock
+# groups understood by the current cross-language BubbleState contract.
+MANUAL_BUBBLE_FIELDS = frozenset({
+    "geometry",
+    "originalText",
+    "translatedText",
+    "textboxText",
+    "style",
+})
+
+
+def normalize_manual_bubble_fields(value: Any) -> List[str]:
+    """Drop invalid lock values while retaining stable order and uniqueness."""
+    if not isinstance(value, list):
+        return []
+
+    normalized: List[str] = []
+    for field_name in value:
+        if isinstance(field_name, str) and field_name in MANUAL_BUBBLE_FIELDS and field_name not in normalized:
+            normalized.append(field_name)
+    return normalized
+
+
 # ============================================================
 # BubbleTextline: 最小文本行模型
 # ============================================================
@@ -87,6 +110,12 @@ class BubbleState:
     - 前端使用驼峰命名 (camelCase)
     - from_dict() 支持自动转换
     """
+    # === Durable editing contract ===
+    # Legacy state may omit these values. Browser-side normalization assigns an
+    # opaque ID before state is persisted again; the backend only round-trips it.
+    bubble_id: str = ""
+    manual_fields: List[str] = field(default_factory=list)
+
     # === 文本内容 ===
     original_text: str = ""           # 原文
     translated_text: str = ""         # 译文
@@ -135,6 +164,9 @@ class BubbleState:
         使用驼峰命名以便前端直接使用。
         """
         return {
+            # Durable editing contract
+            "bubbleId": self.bubble_id,
+            "manualFields": normalize_manual_bubble_fields(self.manual_fields),
             # 文本内容
             "originalText": self.original_text,
             "translatedText": self.translated_text,
@@ -200,6 +232,11 @@ class BubbleState:
         """
         # 驼峰命名 -> 下划线命名 映射
         camel_to_snake = {
+            # Durable editing contract
+            "bubbleId": "bubble_id",
+            "bubble_id": "bubble_id",
+            "manualFields": "manual_fields",
+            "manual_fields": "manual_fields",
             # 文本内容
             "originalText": "original_text",
             "translatedText": "translated_text",
@@ -274,6 +311,10 @@ class BubbleState:
             filtered["textlines"] = [BubbleTextline.from_dict(item) for item in filtered["textlines"]]
         if "ocr_result" in filtered and isinstance(filtered["ocr_result"], dict):
             filtered["ocr_result"] = OcrResult.from_dict(filtered["ocr_result"])
+        if "bubble_id" in filtered:
+            filtered["bubble_id"] = str(filtered["bubble_id"] or "")
+        if "manual_fields" in filtered:
+            filtered["manual_fields"] = normalize_manual_bubble_fields(filtered["manual_fields"])
         
         return cls(**filtered)
     

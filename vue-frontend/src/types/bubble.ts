@@ -41,6 +41,17 @@ export type TextAlign = 'start' | 'center' | 'end'
 export type InpaintMethod = 'solid' | 'lama_mpe' | 'litelama'
 
 /**
+ * Durable, user-controlled bubble fields.  These are intentionally coarse
+ * groups so a model/backend adapter never has to understand every UI control.
+ */
+export type BubbleManualField =
+  | 'geometry'
+  | 'originalText'
+  | 'translatedText'
+  | 'textboxText'
+  | 'style'
+
+/**
  * 气泡位置
  */
 export interface BubblePosition {
@@ -53,6 +64,14 @@ export interface BubblePosition {
  * 包含气泡的所有渲染参数
  */
 export interface BubbleState {
+  /**
+   * Opaque durable identity. Legacy saved states may omit this until they are
+   * normalized by bubbleFactory on load.
+   */
+  bubbleId?: string
+  /** Fields edited/locked by a person and protected from generated writes. */
+  manualFields?: BubbleManualField[]
+
   // 文本内容
   /** 原文文本 */
   originalText: string

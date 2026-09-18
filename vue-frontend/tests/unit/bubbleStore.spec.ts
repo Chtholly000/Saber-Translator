@@ -26,4 +26,26 @@ describe('bubbleStore', () => {
 
     expect(bubbleStore.bubbles[0]?.autoTextDirection).toBe('vertical')
   })
+
+  it('records direct editor changes as manual locks without changing the bubble ID', () => {
+    const bubbleStore = useBubbleStore()
+    const bubble = createBubbleState({
+      originalText: 'OCR 原文',
+      translatedText: '模型译文',
+    })
+
+    bubbleStore.setBubbles([bubble])
+    bubbleStore.updateBubble(0, {
+      originalText: '人工校对原文',
+      translatedText: '人工校对译文',
+      fontSize: 26,
+    })
+
+    expect(bubbleStore.bubbles[0]?.bubbleId).toBe(bubble.bubbleId)
+    expect(bubbleStore.bubbles[0]?.manualFields).toEqual(expect.arrayContaining([
+      'originalText',
+      'translatedText',
+      'style',
+    ]))
+  })
 })

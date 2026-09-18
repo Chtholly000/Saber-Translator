@@ -546,7 +546,7 @@ export function useBubbleActions(callbacks?: BubbleActionCallbacks) {
           originalText: response.text,
           textlines: response.textlines || bubbleTextlines,
           ocrResult: response.ocr_result || null
-        })
+        }, { markManual: false })
         console.log(`OCR 识别成功: "${response.text}"`)
       } else {
         if (!isSameCurrentImage(expectedImageId)) {

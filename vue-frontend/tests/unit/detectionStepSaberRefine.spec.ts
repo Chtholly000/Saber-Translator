@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { createBubbleState } from '@/utils/bubbleFactory'
 
 const { parallelDetectMock } = vi.hoisted(() => ({
   parallelDetectMock: vi.fn()
@@ -97,5 +98,49 @@ describe('executeDetection saber yolo refine flags', () => {
       enable_aux_yolo_detection: false
     }))
     expect(parallelDetectMock.mock.calls[1]?.[0]).not.toHaveProperty('min_text_block_area_percent')
+  })
+
+  it('keeps the identity and locked fields of a matched bubble during forced detection', async () => {
+    parallelDetectMock
+      .mockResolvedValueOnce({
+        success: true,
+        bubble_coords: [[2, 2, 22, 22]],
+        bubble_angles: [10],
+        bubble_polygons: [[]],
+        auto_directions: ['h'],
+        textlines_per_bubble: [[]],
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        raw_mask: 'mask-data',
+      })
+
+    const existingBubble = createBubbleState({
+      bubbleId: 'bubble_manual_geometry',
+      manualFields: ['geometry', 'originalText'],
+      coords: [0, 0, 20, 20],
+      originalText: '人工校对原文',
+      rotationAngle: 4,
+    })
+    const { executeDetection } = await import('@/composables/translation/core/steps/detection')
+
+    const result = await executeDetection({
+      imageIndex: 0,
+      image: {
+        originalDataURL: 'data:image/png;base64,ZmFrZQ==',
+        originalTexts: ['模型原文'],
+        bubbleStates: [existingBubble],
+      } as any,
+      forceDetect: true,
+      settingsSnapshot: detectionSettingsSnapshot,
+    })
+
+    expect(result.bubbleStates).toHaveLength(1)
+    expect(result.bubbleStates[0]).toMatchObject({
+      bubbleId: 'bubble_manual_geometry',
+      coords: [0, 0, 20, 20],
+      originalText: '人工校对原文',
+      rotationAngle: 4,
+    })
   })
 })

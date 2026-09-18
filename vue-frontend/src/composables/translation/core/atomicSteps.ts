@@ -11,6 +11,7 @@ import {
 import { persistPage } from './persistenceService'
 import type { PipelineRuntime, TaskContext } from './runtime'
 import type { BubbleState } from '@/types/bubble'
+import { mergeGeneratedBubbleState } from '@/utils/bubbleFactory'
 
 function mergeOcrIntoBubbleStates(
   bubbleStates: BubbleState[] | null | undefined,
@@ -21,11 +22,37 @@ function mergeOcrIntoBubbleStates(
     return bubbleStates
   }
 
-  return bubbleStates.map((bubbleState, index) => ({
+  return bubbleStates.map((bubbleState, index) => mergeGeneratedBubbleState(bubbleState, {
     ...bubbleState,
     originalText: originalTexts[index] ?? bubbleState.originalText,
     ocrResult: ocrResults[index] ?? bubbleState.ocrResult ?? null,
   }))
+}
+
+function mergeTranslationIntoBubbleStates(
+  bubbleStates: BubbleState[] | null | undefined,
+  translatedTexts: string[],
+  textboxTexts: string[],
+): {
+  bubbleStates: BubbleState[] | null | undefined
+  translatedTexts: string[]
+  textboxTexts: string[]
+} {
+  if (!Array.isArray(bubbleStates)) {
+    return { bubbleStates, translatedTexts, textboxTexts }
+  }
+
+  const mergedBubbleStates = bubbleStates.map((bubbleState, index) => mergeGeneratedBubbleState(bubbleState, {
+    ...bubbleState,
+    translatedText: translatedTexts[index] ?? bubbleState.translatedText,
+    textboxText: textboxTexts[index] ?? bubbleState.textboxText,
+  }))
+
+  return {
+    bubbleStates: mergedBubbleStates,
+    translatedTexts: mergedBubbleStates.map((bubble) => bubble.translatedText),
+    textboxTexts: mergedBubbleStates.map((bubble) => bubble.textboxText),
+  }
 }
 
 export type AtomicStepName =
@@ -77,16 +104,19 @@ export async function executeAtomicStep(
         textlinesPerBubble: context.textlinesPerBubble,
         settingsSnapshot: runtime.settingsSnapshot,
       })
+      const bubbleStates = mergeOcrIntoBubbleStates(
+        context.bubbleStates,
+        result.originalTexts,
+        result.ocrResults,
+      )
       return {
         ...context,
         status: 'processing',
-        originalTexts: result.originalTexts,
+        originalTexts: Array.isArray(bubbleStates)
+          ? bubbleStates.map((bubble) => bubble.originalText)
+          : result.originalTexts,
         ocrResults: result.ocrResults,
-        bubbleStates: mergeOcrIntoBubbleStates(
-          context.bubbleStates,
-          result.originalTexts,
-          result.ocrResults,
-        ),
+        bubbleStates,
       }
     }
     case 'color': {
@@ -131,12 +161,18 @@ export async function executeAtomicStep(
         bookTranslationConstraints: runtime.bookTranslationConstraints,
         isBookshelfMode: runtime.isBookshelfMode,
       })
+      const merged = mergeTranslationIntoBubbleStates(
+        context.bubbleStates,
+        result.translatedTexts,
+        result.textboxTexts,
+      )
       return {
         ...context,
         status: 'processing',
-        translatedTexts: result.translatedTexts,
-        textboxTexts: result.textboxTexts,
+        translatedTexts: merged.translatedTexts,
+        textboxTexts: merged.textboxTexts,
         warnings: result.warnings,
+        bubbleStates: merged.bubbleStates,
       }
     }
     case 'inpaint': {
@@ -228,12 +264,18 @@ export async function executeBatchAtomicStep(
 
       return contexts.map((context) => {
         const taskResult = result.results.find((item) => item.imageIndex === context.imageIndex)
+        const merged = mergeTranslationIntoBubbleStates(
+          context.bubbleStates,
+          taskResult?.translatedTexts || [],
+          taskResult?.textboxTexts || [],
+        )
         return {
           ...context,
           status: 'processing',
-          translatedTexts: taskResult?.translatedTexts || [],
-          textboxTexts: taskResult?.textboxTexts || [],
+          translatedTexts: merged.translatedTexts,
+          textboxTexts: merged.textboxTexts,
           warnings: taskResult?.warnings || [],
+          bubbleStates: merged.bubbleStates,
         }
       })
     }

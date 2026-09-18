@@ -11,16 +11,93 @@ import type {
   BubbleStateUpdates,
   BubbleApiResponse,
   BubbleGlobalDefaults,
+  BubbleManualField,
   TextDirection,
   InpaintMethod
 } from '@/types/bubble'
 import { TEXT_STYLE_DEFAULTS } from '@/defaults/textStyleDefaults'
+
+export const BUBBLE_MANUAL_FIELDS: readonly BubbleManualField[] = [
+  'geometry',
+  'originalText',
+  'translatedText',
+  'textboxText',
+  'style',
+]
+
+const GEOMETRY_KEYS: ReadonlySet<keyof BubbleState> = new Set([
+  'coords',
+  'polygon',
+  'rotationAngle',
+  'position',
+])
+
+const ORIGINAL_TEXT_KEYS: ReadonlySet<keyof BubbleState> = new Set(['originalText'])
+const TRANSLATED_TEXT_KEYS: ReadonlySet<keyof BubbleState> = new Set(['translatedText'])
+const TEXTBOX_TEXT_KEYS: ReadonlySet<keyof BubbleState> = new Set(['textboxText'])
+const STYLE_KEYS: ReadonlySet<keyof BubbleState> = new Set([
+  'fontSize',
+  'fontFamily',
+  'textDirection',
+  'textColor',
+  'fillColor',
+  'strokeEnabled',
+  'strokeColor',
+  'strokeWidth',
+  'lineSpacing',
+  'textAlign',
+  'inpaintMethod',
+])
+
+let bubbleIdSequence = 0
+
+/** Generates an opaque browser-side ID without tying it to a backend/provider. */
+export function createBubbleId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `bubble_${crypto.randomUUID()}`
+  }
+
+  bubbleIdSequence += 1
+  return `bubble_${Date.now().toString(36)}_${bubbleIdSequence}_${Math.random().toString(36).slice(2, 10)}`
+}
+
+export function normalizeManualFields(fields: unknown): BubbleManualField[] {
+  if (!Array.isArray(fields)) {
+    return []
+  }
+
+  return [...new Set(fields.filter((field): field is BubbleManualField =>
+    typeof field === 'string' && BUBBLE_MANUAL_FIELDS.includes(field as BubbleManualField)
+  ))]
+}
+
+export function isBubbleFieldManual(
+  state: Pick<BubbleState, 'manualFields'>,
+  field: BubbleManualField,
+): boolean {
+  return normalizeManualFields(state.manualFields).includes(field)
+}
+
+export function getManualFieldsForUpdates(updates: BubbleStateUpdates): BubbleManualField[] {
+  const keys = Object.keys(updates) as Array<keyof BubbleState>
+  const manualFields: BubbleManualField[] = []
+
+  if (keys.some((key) => GEOMETRY_KEYS.has(key))) manualFields.push('geometry')
+  if (keys.some((key) => ORIGINAL_TEXT_KEYS.has(key))) manualFields.push('originalText')
+  if (keys.some((key) => TRANSLATED_TEXT_KEYS.has(key))) manualFields.push('translatedText')
+  if (keys.some((key) => TEXTBOX_TEXT_KEYS.has(key))) manualFields.push('textboxText')
+  if (keys.some((key) => STYLE_KEYS.has(key))) manualFields.push('style')
+
+  return manualFields
+}
 
 /**
  * 默认气泡状态值
  * 与后端 BubbleState 默认值保持一致
  */
 export const DEFAULT_BUBBLE_STATE: BubbleState = {
+  bubbleId: '',
+  manualFields: [],
   // 文本内容
   originalText: '',
   translatedText: '',
@@ -93,6 +170,10 @@ export function createBubbleState(overrides?: BubbleStateOverrides): BubbleState
   // 确保数组和对象是独立的副本，覆盖可能被共享的引用
   return {
     ...base,
+    bubbleId: typeof overrides?.bubbleId === 'string' && overrides.bubbleId.trim()
+      ? overrides.bubbleId
+      : createBubbleId(),
+    manualFields: normalizeManualFields(overrides?.manualFields),
     coords: overrides?.coords
       ? ([...overrides.coords] as BubbleCoords)
       : ([...DEFAULT_BUBBLE_STATE.coords] as BubbleCoords),
@@ -102,6 +183,60 @@ export function createBubbleState(overrides?: BubbleStateOverrides): BubbleState
       ? { ...DEFAULT_BUBBLE_STATE.position, ...overrides.position }
       : { ...DEFAULT_BUBBLE_STATE.position }
   }
+}
+
+/**
+ * Compatibility migration for legacy state loaded from a session/API. It is
+ * safe to call repeatedly: existing IDs and manual locks are preserved.
+ */
+export function normalizeBubbleStates(states?: BubbleState[] | null): BubbleState[] {
+  if (!Array.isArray(states)) {
+    return []
+  }
+  return states.map((state) => createBubbleState(state))
+}
+
+function preserveManualGroup(
+  existing: BubbleState,
+  generated: BubbleState,
+  group: BubbleManualField,
+  keys: ReadonlySet<keyof BubbleState>,
+): void {
+  if (!isBubbleFieldManual(existing, group)) {
+    return
+  }
+  const generatedRecord = generated as unknown as Record<string, unknown>
+  const existingRecord = existing as unknown as Record<string, unknown>
+  for (const key of keys) {
+    generatedRecord[key] = existingRecord[key]
+  }
+}
+
+/**
+ * Merge a model/backend result into a local bubble without losing a user's
+ * locked fields. This is the only merge policy used at model write boundaries.
+ */
+export function mergeGeneratedBubbleState(
+  existing: BubbleState,
+  generated: BubbleState,
+): BubbleState {
+  const merged = createBubbleState({
+    ...existing,
+    ...generated,
+    bubbleId: existing.bubbleId || generated.bubbleId,
+    manualFields: normalizeManualFields([
+      ...(existing.manualFields || []),
+      ...(generated.manualFields || []),
+    ]),
+  })
+
+  preserveManualGroup(existing, merged, 'geometry', GEOMETRY_KEYS)
+  preserveManualGroup(existing, merged, 'originalText', ORIGINAL_TEXT_KEYS)
+  preserveManualGroup(existing, merged, 'translatedText', TRANSLATED_TEXT_KEYS)
+  preserveManualGroup(existing, merged, 'textboxText', TEXTBOX_TEXT_KEYS)
+  preserveManualGroup(existing, merged, 'style', STYLE_KEYS)
+
+  return merged
 }
 
 /**
@@ -141,8 +276,8 @@ export function createBubbleStatesFromResponse(
 
   // 如果后端返回了完整的 bubble_states，直接使用
   if (bubble_states.length > 0) {
-    return bubble_states.map((state, index) => ({
-      ...createBubbleState(globalDefaults),
+    return bubble_states.map((state, index) => createBubbleState({
+      ...globalDefaults,
       ...state,
       // 确保坐标存在
       coords: state.coords || bubble_coords[index] || [0, 0, 100, 100],
@@ -228,7 +363,11 @@ export function updateBubbleState(
     // 如果更新了 position，需要合并而不是替换
     position: updates.position
       ? { ...state.position, ...updates.position }
-      : state.position
+      : state.position,
+    manualFields: normalizeManualFields([
+      ...(state.manualFields || []),
+      ...getManualFieldsForUpdates(updates),
+    ])
   }
 }
 
@@ -251,7 +390,7 @@ export function updateAllBubbleStates(
  * @returns 深拷贝后的数组
  */
 export function cloneBubbleStates(states: BubbleState[]): BubbleState[] {
-  return states.map((state) => ({
+  return states.map((state) => createBubbleState({
     ...state,
     coords: [...state.coords] as BubbleCoords,
     polygon: state.polygon ? state.polygon.map((point) => [...point]) : [],
@@ -260,7 +399,8 @@ export function cloneBubbleStates(states: BubbleState[]): BubbleState[] {
     // 深拷贝颜色数组（如果存在）
     autoFgColor: state.autoFgColor ? [...state.autoFgColor] as [number, number, number] : null,
     autoBgColor: state.autoBgColor ? [...state.autoBgColor] as [number, number, number] : null,
-    ocrResult: state.ocrResult ? { ...state.ocrResult } : null
+    ocrResult: state.ocrResult ? { ...state.ocrResult } : null,
+    manualFields: normalizeManualFields(state.manualFields),
   }))
 }
 
@@ -270,7 +410,7 @@ export function cloneBubbleStates(states: BubbleState[]): BubbleState[] {
  * @returns 深拷贝后的状态
  */
 export function cloneBubbleState(state: BubbleState): BubbleState {
-  return {
+  return createBubbleState({
     ...state,
     coords: [...state.coords] as BubbleCoords,
     polygon: state.polygon ? state.polygon.map((point) => [...point]) : [],
@@ -279,8 +419,9 @@ export function cloneBubbleState(state: BubbleState): BubbleState {
     // 深拷贝颜色数组（如果存在）
     autoFgColor: state.autoFgColor ? [...state.autoFgColor] as [number, number, number] : null,
     autoBgColor: state.autoBgColor ? [...state.autoBgColor] as [number, number, number] : null,
-    ocrResult: state.ocrResult ? { ...state.ocrResult } : null
-  }
+    ocrResult: state.ocrResult ? { ...state.ocrResult } : null,
+    manualFields: normalizeManualFields(state.manualFields),
+  })
 }
 
 /**

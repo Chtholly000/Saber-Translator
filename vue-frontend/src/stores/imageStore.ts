@@ -12,7 +12,7 @@ import {
   getImageTextStyleDefaults,
   normalizeImageTextStyleFields,
 } from '@/defaults/textStyleDefaults'
-import { getTextlinesPerBubbleFromStates } from '@/utils/bubbleFactory'
+import { getTextlinesPerBubbleFromStates, normalizeBubbleStates } from '@/utils/bubbleFactory'
 
 /**
  * 生成唯一 ID
@@ -28,8 +28,9 @@ function pickDefinedValues<T extends Record<string, unknown>>(value: T): Partial
 }
 
 function applyBubbleStateMirrors(target: ImageData, bubbleStates: BubbleState[] | null): void {
-  target.bubbleStates = bubbleStates
-  if (!bubbleStates) {
+  const normalizedBubbleStates = bubbleStates ? normalizeBubbleStates(bubbleStates) : null
+  target.bubbleStates = normalizedBubbleStates
+  if (!normalizedBubbleStates) {
     target.bubbleCoords = undefined
     target.bubbleAngles = undefined
     target.originalTexts = undefined
@@ -40,13 +41,13 @@ function applyBubbleStateMirrors(target: ImageData, bubbleStates: BubbleState[] 
     return
   }
 
-  target.bubbleCoords = bubbleStates.map((bubble) => bubble.coords)
-  target.bubbleAngles = bubbleStates.map((bubble) => bubble.rotationAngle || 0)
-  target.originalTexts = bubbleStates.map((bubble) => bubble.originalText || '')
-  target.bubbleTexts = bubbleStates.map((bubble) => bubble.translatedText || '')
-  target.textboxTexts = bubbleStates.map((bubble) => bubble.textboxText || '')
-  target.textlinesPerBubble = getTextlinesPerBubbleFromStates(bubbleStates)
-  target.ocrResults = bubbleStates.map((bubble) => bubble.ocrResult || {
+  target.bubbleCoords = normalizedBubbleStates.map((bubble) => bubble.coords)
+  target.bubbleAngles = normalizedBubbleStates.map((bubble) => bubble.rotationAngle || 0)
+  target.originalTexts = normalizedBubbleStates.map((bubble) => bubble.originalText || '')
+  target.bubbleTexts = normalizedBubbleStates.map((bubble) => bubble.translatedText || '')
+  target.textboxTexts = normalizedBubbleStates.map((bubble) => bubble.textboxText || '')
+  target.textlinesPerBubble = getTextlinesPerBubbleFromStates(normalizedBubbleStates)
+  target.ocrResults = normalizedBubbleStates.map((bubble) => bubble.ocrResult || {
     text: bubble.originalText || '',
     confidence: null,
     confidenceSupported: false,
@@ -235,7 +236,7 @@ export const useImageStore = defineStore('image', () => {
   function setImages(newImages: ImageData[]): void {
     images.value = newImages.map((img) => {
       const normalizedTextStyle = normalizeImageTextStyleFields(img)
-      return createDefaultImageData(
+      const image = createDefaultImageData(
         img.fileName,
         img.originalDataURL,
         {
@@ -247,6 +248,10 @@ export const useImageStore = defineStore('image', () => {
         } as Partial<ImageData>,
         { preferCurrentTextStyle: false }
       )
+      if (img.bubbleStates !== undefined && img.bubbleStates !== null) {
+        applyBubbleStateMirrors(image, img.bubbleStates)
+      }
+      return image
     })
 
     // 重置当前索引

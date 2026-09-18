@@ -17,10 +17,18 @@ import { useSettingsStore } from '@/stores/settingsStore'
 import {
   createBubbleState,
   cloneBubbleStates,
+  getManualFieldsForUpdates,
   getTextlinesPerBubbleFromStates,
   isValidBubbleState,
+  normalizeBubbleStates,
+  normalizeManualFields,
   detectTextDirection
 } from '@/utils/bubbleFactory'
+
+interface BubbleUpdateOptions {
+  /** Model-triggered or reset writes may opt out of creating a manual lock. */
+  markManual?: boolean
+}
 
 // ============================================================
 // Store 定义
@@ -150,10 +158,11 @@ export const useBubbleStore = defineStore('bubble', () => {
    * @param skipSync - 是否跳过同步到 imageStore（加载时使用）
    */
   function setBubbles(newBubbles: BubbleState[], skipSync: boolean = false): void {
-    bubbles.value = newBubbles
-    initialStates.value = cloneBubbleStates(newBubbles)
+    const normalizedBubbles = normalizeBubbleStates(newBubbles)
+    bubbles.value = normalizedBubbles
+    initialStates.value = cloneBubbleStates(normalizedBubbles)
     clearSelection()
-    console.log(`气泡数组已设置，共 ${newBubbles.length} 个气泡`)
+    console.log(`气泡数组已设置，共 ${normalizedBubbles.length} 个气泡`)
     // 设置初始数据时通常不需要同步（避免覆盖），但可以选择同步
     if (!skipSync) {
       syncToCurrentImage()
@@ -207,6 +216,11 @@ export const useBubbleStore = defineStore('bubble', () => {
       // 允许 overrides 覆盖上述默认值
       ...overrides
     })
+    newBubble.manualFields = normalizeManualFields([
+      ...(newBubble.manualFields || []),
+      'geometry',
+      'style',
+    ])
     bubbles.value.push(newBubble)
     console.log(`已添加气泡，当前共 ${bubbles.value.length} 个`)
     // 【同步】添加气泡后同步到 currentImage
@@ -380,7 +394,11 @@ export const useBubbleStore = defineStore('bubble', () => {
    * @param updates - 要更新的属性
    * @returns 是否更新成功
    */
-  function updateBubble(index: number, updates: BubbleStateUpdates): boolean {
+  function updateBubble(
+    index: number,
+    updates: BubbleStateUpdates,
+    options: BubbleUpdateOptions = {},
+  ): boolean {
     if (index < 0 || index >= bubbles.value.length) {
       console.warn(`更新失败: 无效的索引 ${index}`)
       return false
@@ -388,10 +406,17 @@ export const useBubbleStore = defineStore('bubble', () => {
 
     const bubble = bubbles.value[index]
     if (bubble) {
-      if (updates.coords) {
-        updates.autoTextDirection = detectTextDirection(updates.coords)
+      const updatesWithAutoDirection = { ...updates }
+      if (updatesWithAutoDirection.coords) {
+        updatesWithAutoDirection.autoTextDirection = detectTextDirection(updatesWithAutoDirection.coords)
       }
-      Object.assign(bubble, updates)
+      Object.assign(bubble, updatesWithAutoDirection)
+      if (options.markManual !== false) {
+        bubble.manualFields = normalizeManualFields([
+          ...(bubble.manualFields || []),
+          ...getManualFieldsForUpdates(updatesWithAutoDirection),
+        ])
+      }
       console.log(`已更新气泡 ${index}`)
       // 【同步】复刻旧版逻辑：每次更新单个气泡时同步到 currentImage
       syncToCurrentImage()
@@ -405,19 +430,19 @@ export const useBubbleStore = defineStore('bubble', () => {
    * @param updates - 要更新的属性
    * @returns 是否更新成功
    */
-  function updateSelectedBubble(updates: BubbleStateUpdates): boolean {
+  function updateSelectedBubble(updates: BubbleStateUpdates, options: BubbleUpdateOptions = {}): boolean {
     if (selectedIndex.value < 0) {
       console.warn('更新失败: 没有选中的气泡')
       return false
     }
-    return updateBubble(selectedIndex.value, updates)
+    return updateBubble(selectedIndex.value, updates, options)
   }
 
   /**
    * 批量更新所有选中的气泡
    * @param updates - 要更新的属性
    */
-  function updateAllSelected(updates: BubbleStateUpdates): void {
+  function updateAllSelected(updates: BubbleStateUpdates, options: BubbleUpdateOptions = {}): void {
     const indices = selectedIndices.value.length > 0
       ? selectedIndices.value
       : (selectedIndex.value >= 0 ? [selectedIndex.value] : [])
@@ -430,6 +455,12 @@ export const useBubbleStore = defineStore('bubble', () => {
           updatesWithAutoDirection.autoTextDirection = detectTextDirection(updates.coords)
         }
         Object.assign(bubble, updatesWithAutoDirection)
+        if (options.markManual !== false) {
+          bubble.manualFields = normalizeManualFields([
+            ...(bubble.manualFields || []),
+            ...getManualFieldsForUpdates(updatesWithAutoDirection),
+          ])
+        }
       }
     }
     // 【同步】批量更新后统一同步一次
@@ -441,7 +472,7 @@ export const useBubbleStore = defineStore('bubble', () => {
    * 更新所有气泡的指定属性
    * @param updates - 要更新的属性
    */
-  function updateAllBubbles(updates: BubbleStateUpdates): void {
+  function updateAllBubbles(updates: BubbleStateUpdates, options: BubbleUpdateOptions = {}): void {
     for (let i = 0; i < bubbles.value.length; i++) {
       const bubble = bubbles.value[i]
       if (bubble) {
@@ -450,6 +481,12 @@ export const useBubbleStore = defineStore('bubble', () => {
           updatesWithAutoDirection.autoTextDirection = detectTextDirection(updates.coords)
         }
         Object.assign(bubble, updatesWithAutoDirection)
+        if (options.markManual !== false) {
+          bubble.manualFields = normalizeManualFields([
+            ...(bubble.manualFields || []),
+            ...getManualFieldsForUpdates(updatesWithAutoDirection),
+          ])
+        }
       }
     }
     // 【修复问题4】批量更新后同步到 currentImage，确保样式落盘

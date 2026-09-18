@@ -54,7 +54,8 @@ Flask 应用
 - Python `BubbleState`、TypeScript `BubbleState`、`TaskContext` 和保存 payload 存在重复字段。
 - 图片通过 base64 放进同步请求，适合本地但不适合长期远程任务和大批量页面。
 - 部分步骤既负责调用模型，又负责把结果投影到 UI 状态。
-- 人工编辑与模型结果缺少统一的字段级来源/锁定规则。
+- `bubbleId` 和 `manualFields` 已提供本地字段锁保护，但没有 provenance、页面 revision
+  比较或可见的解锁/冲突处理 UI。
 
 ## TARGET：目标部署拓扑
 
@@ -142,5 +143,5 @@ detect → ocr → translate → inpaint → render
 - Modal Worker 与远程任务队列。
 - MTU Python 适配器及其字段转换测试。
 - DeepSeek 专用配置界面；现有 OpenAI-compatible 能力是否足够仍需验证。
-- 版本化的跨语言项目 schema 和人工字段锁。
+- 版本化的跨语言项目 schema、字段 provenance、页面 revision 和人工锁管理 UI。
 - Oracle 部署、备份和恢复方案。

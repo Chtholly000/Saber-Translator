@@ -17,6 +17,10 @@ interface PersistAllPagesOptions extends PersistPageOptions {
   currentImageIndex?: number
 }
 
+// This scopes the compatibility promise to bubble identity/locks. It is not a
+// claim that the broader remote project-document schema exists already.
+const BUBBLE_STATE_CONTRACT_VERSION = 1
+
 function ensureSessionPath(runtime: PipelineRuntime): string {
   if (!runtime.sessionPath) {
     throw new Error('当前不在书架模式，无法保存到章节存档')
@@ -140,6 +144,7 @@ function buildPageMeta(context: TaskContext, runtime: PipelineRuntime): Record<s
       ? false
       : Boolean(image.translationFailed)
   return {
+    bubbleStateContractVersion: BUBBLE_STATE_CONTRACT_VERSION,
     fileName: image.fileName,
     translationStatus,
     translationFailed,

@@ -9,7 +9,11 @@ import type { BubbleState, BubbleCoords, BubbleTextline } from '@/types/bubble'
 import type { SavedTextStyles } from '../types'
 import type { OcrResult } from '@/types/ocr'
 import type { TranslationSettings } from '@/types/settings'
-import { cloneBubbleStates } from '@/utils/bubbleFactory'
+import {
+    cloneBubbleStates,
+    isBubbleFieldManual,
+    mergeGeneratedBubbleState,
+} from '@/utils/bubbleFactory'
 
 export interface RenderInput {
     imageIndex: number
@@ -79,7 +83,7 @@ function mergeRenderedBubbleStates(
             mergedState.colorConfidence = localState.colorConfidence
         }
 
-        return mergedState
+        return mergeGeneratedBubbleState(localState, mergedState)
     })
 }
 
@@ -149,22 +153,32 @@ export async function executeRender(input: RenderInput): Promise<RenderOutput> {
         let finalFillColor = baseState?.fillColor ?? savedTextStyles?.fillColor ?? textStyle.fillColor
         const colorInfo = colors[idx]
 
-        if (shouldInitializeAutoColor && colorInfo) {
+        if (shouldInitializeAutoColor && colorInfo && !isBubbleFieldManual(baseState || {}, 'style')) {
             if (colorInfo.textColor) finalTextColor = colorInfo.textColor
             if (colorInfo.bgColor) finalFillColor = colorInfo.bgColor
         }
 
         return {
             ...(baseState || {}),
-            coords,
+            coords: isBubbleFieldManual(baseState || {}, 'geometry')
+                ? baseState?.coords || coords
+                : coords,
             polygon: baseState?.polygon || [] as number[][],
             position: baseState?.position || { x: 0, y: 0 },
-            rotationAngle: bubbleAngles[idx] || 0,
-            originalText: originalTexts[idx] || '',
+            rotationAngle: isBubbleFieldManual(baseState || {}, 'geometry')
+                ? baseState?.rotationAngle || 0
+                : bubbleAngles[idx] || 0,
+            originalText: isBubbleFieldManual(baseState || {}, 'originalText')
+                ? baseState?.originalText || ''
+                : originalTexts[idx] ?? baseState?.originalText ?? '',
             textlines: textlinesPerBubble?.[idx] || baseState?.textlines || [],
             ocrResult: ocrResults?.[idx] || null,
-            translatedText: translatedTexts[idx] || '',
-            textboxText: textboxTexts[idx] || '',
+            translatedText: isBubbleFieldManual(baseState || {}, 'translatedText')
+                ? baseState?.translatedText || ''
+                : translatedTexts[idx] ?? baseState?.translatedText ?? '',
+            textboxText: isBubbleFieldManual(baseState || {}, 'textboxText')
+                ? baseState?.textboxText || ''
+                : textboxTexts[idx] ?? baseState?.textboxText ?? '',
             textDirection: textDirection as 'vertical' | 'horizontal',  // 渲染用的具体方向
             autoTextDirection: mappedAutoDir as 'vertical' | 'horizontal',  // 备份检测结果
             fontSize: baseState?.fontSize ?? savedTextStyles?.fontSize ?? textStyle.fontSize,

@@ -1,6 +1,7 @@
 # 流水线与数据契约
 
-状态：现有字段说明为 `CURRENT`；版本化、来源和人工锁规则为 `TARGET`。
+状态：气泡身份与人工锁为 `CURRENT (v1)`；跨设备工程文档、revision 和
+provenance 为 `TARGET`。
 
 ## CURRENT：现有运行时对象
 
@@ -19,6 +20,30 @@ Python `BubbleState` 和 TypeScript `BubbleState` 表达可编辑气泡，核心
 - `originalText`、`translatedText`、`textboxText`；
 - 字体、字号、文字方向、颜色、填充、描边、行距和对齐；
 - inpaint 方法、自动颜色、文本行与 OCR 元数据。
+
+### CURRENT (v1)：气泡身份与人工锁
+
+每个经前端工厂创建或会话加载的气泡都具有不透明的 `bubbleId`。旧会话可能没有该字段；
+`bubbleFactory` 会在加载时补发 ID，并在下次保存时将其写回。Python `BubbleState` 和
+render API 会无损往返 `bubbleId`，不会在后端猜测或重写 ID。
+
+`manualFields` 是去重后的下列字段组：
+
+- `geometry`：矩形、多边形、旋转和位置偏移；
+- `originalText`、`translatedText`、`textboxText`；
+- `style`：字体、字号、方向、颜色、描边、行距、对齐和修复方式。
+
+编辑器通过 `bubbleStore` 的直接用户更新自动添加对应锁。自动 OCR、翻译、强制检测和渲染
+响应都要经过同一合并规则：锁定组保留本地值，未锁定组可以由生成结果更新。强制重新检测以
+IoU 匹配既有气泡；检测不到的人工锁定气泡仍保留，用户必须在编辑器中显式删除它。
+
+“重新 OCR”与“重新翻译单个气泡”是用户明确要求替换的操作，结果会直接写入该字段而不会
+新增人工锁；它们不会绕过已经存在的流水线合并规则。当前没有单独的锁管理界面，后续 UI
+必须提供查看、解锁和“用本次模型结果覆盖”的明确操作，不能静默清除锁。
+
+页面元数据保存 `bubbleStateContractVersion: 1`，仅标识上述兼容契约，不等同于下面尚未实施
+的远程项目文档 schema。当前本地流水线仍在若干调用中使用同下标数组；远程适配器不得沿用
+这一做法，必须按 `bubbleId` 回传。
 
 当前六个主要原子 API 位于 `src/app/api/translation/parallel_routes.py`。请求和响应的
 TypeScript 形状位于 `vue-frontend/src/api/parallelTranslate.ts`。
@@ -46,7 +71,7 @@ TypeScript 形状位于 `vue-frontend/src/api/parallelTranslate.ts`。
 这里的 `ref` 是概念字段；当前本地保存仍可落到会话目录，远程模式再映射到受控 artifact。
 不要在尚未迁移前宣称当前页面文件已经使用此 JSON。
 
-每个气泡最终应有稳定 `bubble_id`，并记录：
+每个气泡已经有稳定的 `bubbleId` 和 `manualFields`；未来完整项目文档仍需记录：
 
 - 几何与阅读顺序；
 - 原文、译文和排版样式；
@@ -69,7 +94,7 @@ TypeScript 形状位于 `vue-frontend/src/api/parallelTranslate.ts`。
 
 ## 人工编辑保护
 
-目标写回规则：
+`CURRENT (v1)` 写回规则：
 
 | 字段 | 默认重新运行行为 |
 | --- | --- |
@@ -79,8 +104,8 @@ TypeScript 形状位于 `vue-frontend/src/api/parallelTranslate.ts`。
 | 字体和样式 | 模型步骤不得覆盖人工样式 |
 | clean/final artifact | 可生成新版本，但旧版本在任务提交时不能被提前删除 |
 
-在字段级来源/锁定尚未实现前，任何可能覆盖人工编辑的模块化改动都必须停下来，先补迁移和
-用户确认路径。
+字段级 provenance、页面 revision 比较和可见的锁管理 UI 仍未实现。任何远程写回或新的
+模型适配器都必须先接入现有合并函数，再补齐这些更强的并发保护；不得绕开 `manualFields`。
 
 ## 阶段契约
 

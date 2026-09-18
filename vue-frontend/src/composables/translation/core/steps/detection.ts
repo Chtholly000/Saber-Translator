@@ -6,7 +6,12 @@ import { parallelDetect, type ParallelDetectResponse } from '@/api/parallelTrans
 import type { BubbleCoords, BubbleState, BubbleTextline } from '@/types/bubble'
 import type { ImageData as AppImageData } from '@/types/image'
 import type { TranslationSettings } from '@/types/settings'
-import { createBubbleState } from '@/utils/bubbleFactory'
+import {
+    createBubbleState,
+    isBubbleFieldManual,
+    mergeGeneratedBubbleState,
+    normalizeBubbleStates,
+} from '@/utils/bubbleFactory'
 
 export interface DetectionInput {
     imageIndex: number
@@ -75,6 +80,59 @@ function createBubbleStatesFromDetection(
     })
 }
 
+function intersectionOverUnion(left: BubbleCoords, right: BubbleCoords): number {
+    const [leftX1, leftY1, leftX2, leftY2] = left
+    const [rightX1, rightY1, rightX2, rightY2] = right
+    const intersectionWidth = Math.max(0, Math.min(leftX2, rightX2) - Math.max(leftX1, rightX1))
+    const intersectionHeight = Math.max(0, Math.min(leftY2, rightY2) - Math.max(leftY1, rightY1))
+    const intersection = intersectionWidth * intersectionHeight
+    const leftArea = Math.abs(leftX2 - leftX1) * Math.abs(leftY2 - leftY1)
+    const rightArea = Math.abs(rightX2 - rightX1) * Math.abs(rightY2 - rightY1)
+    const union = leftArea + rightArea - intersection
+    return union > 0 ? intersection / union : 0
+}
+
+/**
+ * A forced detection can improve automatic regions, but it may not erase a
+ * person-created bubble or a person-locked field. Matching remains local and
+ * geometry based until the remote stage protocol supplies region IDs itself.
+ */
+function mergeDetectedBubbleStates(
+    existing: BubbleState[],
+    detected: BubbleState[],
+): BubbleState[] {
+    const unmatchedExisting = [...existing]
+    const merged = detected.map((detectedBubble) => {
+        let bestIndex = -1
+        let bestScore = 0
+        unmatchedExisting.forEach((existingBubble, index) => {
+            const score = intersectionOverUnion(existingBubble.coords, detectedBubble.coords)
+            if (score > bestScore) {
+                bestScore = score
+                bestIndex = index
+            }
+        })
+
+        if (bestIndex < 0 || bestScore < 0.2) {
+            return detectedBubble
+        }
+
+        const existingBubble = unmatchedExisting.splice(bestIndex, 1)[0]
+        return existingBubble
+            ? mergeGeneratedBubbleState(existingBubble, detectedBubble)
+            : detectedBubble
+    })
+
+    // A detector missing a manually edited bubble is not permission to remove
+    // it. The user can still delete it explicitly in the editor.
+    return [
+        ...merged,
+        ...unmatchedExisting.filter((bubble) => (bubble.manualFields || []).some((field) =>
+            isBubbleFieldManual(bubble, field)
+        )),
+    ]
+}
+
 export async function executeDetection(input: DetectionInput): Promise<DetectionOutput> {
     const { imageIndex, image, translationMode = 'standard', forceDetect = false, settingsSnapshot } = input
 
@@ -82,7 +140,9 @@ export async function executeDetection(input: DetectionInput): Promise<Detection
     // - bubbleStates === null/undefined: 从未处理过，需要自动检测
     // - bubbleStates === []: 用户主动清空，跳过检测（避免"框复活"）
     // - bubbleStates.length > 0: 有气泡数据，复用已有数据
-    const existingBubbles = image.bubbleStates
+    const existingBubbles = image.bubbleStates === null || image.bubbleStates === undefined
+        ? image.bubbleStates
+        : normalizeBubbleStates(image.bubbleStates)
     if (!forceDetect && existingBubbles !== null && existingBubbles !== undefined) {
         if (existingBubbles.length > 0) {
             console.log(`图片 ${imageIndex + 1} 已有 ${existingBubbles.length} 个气泡，跳过检测`)
@@ -184,9 +244,20 @@ export async function executeDetection(input: DetectionInput): Promise<Detection
         textMask: textMaskData,  // 返回生成的精确掩膜
         textlinesPerBubble: response.textlines_per_bubble || []
     }
+    const detectedBubbleStates = createBubbleStatesFromDetection(image, detectionResult, settingsSnapshot)
+    const bubbleStates = forceDetect && Array.isArray(existingBubbles)
+        ? mergeDetectedBubbleStates(existingBubbles, detectedBubbleStates)
+        : detectedBubbleStates
+
     return {
         ...detectionResult,
-        bubbleStates: createBubbleStatesFromDetection(image, detectionResult, settingsSnapshot)
+        bubbleCoords: bubbleStates.map((bubble) => bubble.coords),
+        bubbleAngles: bubbleStates.map((bubble) => bubble.rotationAngle || 0),
+        bubblePolygons: bubbleStates.map((bubble) => bubble.polygon || []),
+        autoDirections: bubbleStates.map((bubble) => bubble.autoTextDirection || bubble.textDirection || 'vertical'),
+        textlinesPerBubble: bubbleStates.map((bubble) => bubble.textlines || []),
+        originalTexts: bubbleStates.map((bubble) => bubble.originalText || ''),
+        bubbleStates,
     }
 }
 
