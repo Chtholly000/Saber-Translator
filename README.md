@@ -209,13 +209,14 @@ Saber-Translator 提供了一站式的漫画翻译与管理解决方案，集成
 
 ## 开发文档
 
-如果你要修改项目实现，推荐从这些文档开始：
+如果你要修改这个 fork，请从以下权威文档开始：
 
-- `docs/README.md`：文档索引，区分当前手册与历史资料
-- `docs/parallel-mode-development-guide.md`：翻译原子步骤与并行架构
-- `docs/save-load-development-guide.md`：保存/加载主链
-- `docs/text-settings-development-guide.md`：文字样式同步与渲染
-- `docs/OpenAI-Compatible主链开发手册.md`：OpenAI-compatible 共享能力
+- [`AGENTS.md`](AGENTS.md)：编码 Agent 的阅读顺序、边界和验证要求
+- [`docs/README.md`](docs/README.md)：开发文档索引与状态规则
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)：当前系统和目标部署架构
+- [`docs/MODULE_BOUNDARIES.md`](docs/MODULE_BOUNDARIES.md)：模块所有权与依赖方向
+- [`docs/PIPELINE_CONTRACTS.md`](docs/PIPELINE_CONTRACTS.md)：页面、气泡和原子步骤契约
+- [`docs/UPSTREAM_MTU.md`](docs/UPSTREAM_MTU.md)：MTU 固定版本、适配边界与升级流程
 
 ### 书架系统
 
