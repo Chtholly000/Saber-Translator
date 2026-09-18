@@ -19,6 +19,8 @@ from flask import Blueprint, request, jsonify
 
 from src.core.detection import get_bubble_detection_result_with_auto_directions
 from src.core.extraction_backends import create_extraction_backend
+from src.core.pipeline_profiles import resolve_stage_backend_request
+from src.core.stage_backends import create_stage_backend
 from src.core.ocr import recognize_ocr_results_in_bubbles
 from src.core.ocr_hybrid_manga_48 import validate_manga_48_hybrid_combo
 from src.core.ocr_types import ocr_results_to_dicts, extract_texts_from_ocr_results
@@ -52,12 +54,46 @@ parallel_bp = Blueprint('parallel', __name__, url_prefix='/api')
 logger = logging.getLogger('ParallelAPI')
 
 
-def _request_extraction_backend(data):
-    """Resolve local/remote execution without coupling routes to an adapter."""
-    return create_extraction_backend(
-        data.get('extraction_backend'),
+def _request_extraction_backend(data, stage):
+    """Resolve one extraction stage without coupling routes to an adapter.
+
+    ``extraction_backend`` remains supported while the older combined seam is
+    being split. A stage-specific value is preferred; conflicting values fail
+    rather than unexpectedly selecting one of two remote workers.
+    """
+    stage_override_key = 'detector_backend' if stage == 'detect' else 'ocr_backend'
+    profile, backend_name = resolve_stage_backend_request(
+        data.get('pipeline_profile'),
+        stage,
+        stage_backend=data.get(stage_override_key),
+        legacy_backend=data.get('extraction_backend'),
+    )
+    backend = create_extraction_backend(
+        backend_name,
         local_detect=get_bubble_detection_result_with_auto_directions,
         local_ocr=recognize_ocr_results_in_bubbles,
+    )
+    return profile, backend
+
+
+_STAGE_OVERRIDE_KEYS = {
+    'translate': 'translator_backend',
+    'inpaint': 'inpainter_backend',
+    'render': 'renderer_backend',
+}
+
+
+def _request_stage_backend(data, stage, local_handler):
+    """Resolve a non-extraction stage with its own registry and adapter."""
+    profile, backend_name = resolve_stage_backend_request(
+        data.get('pipeline_profile'),
+        stage,
+        stage_backend=data.get(_STAGE_OVERRIDE_KEYS[stage]),
+    )
+    return profile, create_stage_backend(
+        stage,
+        backend_name,
+        local_handler=local_handler,
     )
 
 
@@ -185,7 +221,7 @@ def parallel_detect():
         min_text_block_area_percent = data.get('min_text_block_area_percent', 0)
         
         # 执行检测
-        extraction_backend = _request_extraction_backend(data)
+        pipeline_profile, extraction_backend = _request_extraction_backend(data, 'detect')
         result = extraction_backend.detect(
             img_pil,
             detector_type=detector_type,
@@ -219,6 +255,8 @@ def parallel_detect():
         
         response_payload = {
             'success': True,
+            'pipeline_profile': pipeline_profile.name,
+            'execution_backend': extraction_backend.name,
             'bubble_coords': result.get('coords', []),
             'bubble_angles': result.get('angles', []),
             'bubble_polygons': result.get('polygons', []),
@@ -259,10 +297,14 @@ def parallel_ocr():
         
         if not image_data:
             return jsonify({'success': False, 'error': '缺少图片数据'})
+
+        pipeline_profile, extraction_backend = _request_extraction_backend(data, 'ocr')
         
         if not bubble_coords:
             response_payload = {
                 'success': True,
+                'pipeline_profile': pipeline_profile.name,
+                'execution_backend': extraction_backend.name,
                 'original_texts': [],
                 'ocr_results': [],
                 'textlines_per_bubble': []
@@ -335,7 +377,6 @@ def parallel_ocr():
         img_pil = Image.fromarray(img)
         
         # 执行OCR
-        extraction_backend = _request_extraction_backend(data)
         ocr_results = extraction_backend.ocr(
             img_pil,
             bubble_coords,
@@ -360,6 +401,8 @@ def parallel_ocr():
         )
         response_payload = {
             'success': True,
+            'pipeline_profile': pipeline_profile.name,
+            'execution_backend': extraction_backend.name,
             'original_texts': extract_texts_from_ocr_results(ocr_results),
             'ocr_results': ocr_results_to_dicts(ocr_results),
             'textlines_per_bubble': textlines_per_bubble
@@ -476,10 +519,17 @@ def parallel_translate():
             default_scope="image",
         )
         original_texts = data.get('original_texts', [])
+        pipeline_profile, translation_backend = _request_stage_backend(
+            data,
+            'translate',
+            translate_text_list,
+        )
         
         if not original_texts:
             response_payload = {
                 'success': True,
+                'pipeline_profile': pipeline_profile.name,
+                'execution_backend': translation_backend.name,
                 'translated_texts': [],
                 'textbox_texts': [],
                 'warnings': [],
@@ -543,7 +593,7 @@ def parallel_translate():
         )
         
         # 执行翻译
-        translated_texts = translate_text_list(
+        translated_texts = translation_backend.execute(
             protected_original_texts,
             target_language=target_language,
             model_provider=model_provider,
@@ -564,7 +614,7 @@ def parallel_translate():
             )
             textbox_openai_options = clone_openai_compatible_options(openai_options)
             textbox_openai_options.request.force_json_output = False
-            textbox_texts = translate_text_list(
+            textbox_texts = translation_backend.execute(
                 protected_textbox_originals,
                 target_language=target_language,
                 model_provider=model_provider,
@@ -601,6 +651,8 @@ def parallel_translate():
         
         response_payload = {
             'success': True,
+            'pipeline_profile': pipeline_profile.name,
+            'execution_backend': translation_backend.name,
             'translated_texts': translated_texts,
             'textbox_texts': textbox_texts,
             'warnings': warnings,
@@ -642,6 +694,12 @@ def parallel_inpaint():
         
         if not image_data:
             return jsonify({'success': False, 'error': '缺少图片数据'})
+
+        pipeline_profile, inpaint_backend = _request_stage_backend(
+            data,
+            'inpaint',
+            inpaint_bubbles,
+        )
         
         img = decode_base64_image(image_data)
         
@@ -649,6 +707,8 @@ def parallel_inpaint():
             # 没有气泡，返回原图
             response_payload = {
                 'success': True,
+                'pipeline_profile': pipeline_profile.name,
+                'execution_backend': inpaint_backend.name,
                 'clean_image': encode_image_to_base64(img)
             }
             response_payload = finalize_plugin_result(
@@ -685,7 +745,7 @@ def parallel_inpaint():
         img_pil = Image.fromarray(img)
         
         # 执行修复
-        clean_image_pil, _ = inpaint_bubbles(
+        clean_image_pil, _ = inpaint_backend.execute(
             img_pil,
             bubble_coords,
             method=method,
@@ -701,6 +761,8 @@ def parallel_inpaint():
         
         response_payload = {
             'success': True,
+            'pipeline_profile': pipeline_profile.name,
+            'execution_backend': inpaint_backend.name,
             'clean_image': encode_image_to_base64(clean_image)
         }
         response_payload = finalize_plugin_result(
@@ -713,6 +775,8 @@ def parallel_inpaint():
         )
         return jsonify(response_payload)
         
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
@@ -734,6 +798,12 @@ def parallel_render():
         
         if not clean_image_data:
             return jsonify({'success': False, 'error': '缺少干净背景图'})
+
+        pipeline_profile, render_backend = _request_stage_backend(
+            data,
+            'render',
+            render_bubbles_unified,
+        )
         
         clean_image = decode_base64_image(clean_image_data)
         
@@ -741,6 +811,8 @@ def parallel_render():
             # 没有气泡，返回干净图
             response_payload = {
                 'success': True,
+                'pipeline_profile': pipeline_profile.name,
+                'execution_backend': render_backend.name,
                 'final_image': encode_image_to_base64(clean_image),
                 'bubble_states': []
             }
@@ -802,12 +874,14 @@ def parallel_render():
                     state.font_size = calculated_size
         
         # 执行渲染
-        final_image_pil = render_bubbles_unified(clean_image_pil, bubble_states)
+        final_image_pil = render_backend.execute(clean_image_pil, bubble_states)
         final_image = np.array(final_image_pil)
         updated_states = bubble_states
         
         response_payload = {
             'success': True,
+            'pipeline_profile': pipeline_profile.name,
+            'execution_backend': render_backend.name,
             'final_image': encode_image_to_base64(final_image),
             'bubble_states': bubble_states_to_api_response(updated_states)
         }
@@ -821,5 +895,7 @@ def parallel_render():
         )
         return jsonify(response_payload)
         
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})

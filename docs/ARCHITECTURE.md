@@ -37,9 +37,15 @@ Flask 应用
 - `src/core/config_models.py`：Python `BubbleState` 序列化模型。
 - `src/core/page_storage.py`：页面图片、页面元数据和会话元数据的持久化。
 
-当前 `src/core/extraction_backends/` 已为检测与 OCR 建立一个很小的执行后端边界：
-`local` 仍是唯一内置实现，Flask 仍同步等待结果。它是迁移接缝，不代表 Modal 或 MTU
-适配器已经实现。
+当前 `src/core/pipeline_profiles.py` 已建立自动流水线的组合点。唯一已注册的完整 profile 是
+`local_saber`，其 detect / OCR / translate / inpaint / render 都选 `local`，所以默认行为没有
+改变。五个主 API 都会通过 profile 解析后端；detect/OCR 使用现有 `extraction_backends/` 接缝，
+translate/inpaint/render 使用各自的 `stage_backends/` registry。detect/OCR 保留旧的
+`extraction_backend` 参数作为过渡。Flask 仍同步等待结果；这不代表 Modal、MTU 或远程任务已经
+实现。
+
+Vue 是当前浏览器客户端，不是自动流水线的所有者。它可以被另一客户端（例如批处理客户端）
+替换，只要后者遵守任务/API 和持久化契约；MTU 的 Qt 界面也不能直接当作 Saber 客户端嵌入。
 
 插件系统只在步骤执行前后改写 payload/result。插件不能安全地承担模型生命周期、远程任务、
 幂等重试或大型图片传输，因此插件与后端适配器必须保持不同概念。
@@ -114,15 +120,20 @@ detect → ocr → translate → inpaint → render
 
 颜色提取、术语抽取、保存和导出属于可选能力，不应迫使所有路径运行完整链路。
 
-## TARGET：两层模块化
+## TARGET：三层可替换性
 
-模块化分成两个互不混淆的维度：
+模块化分成三个互不混淆的维度：
 
 1. 阶段端口：`Detector`、`OcrEngine`、`Translator`、`Inpainter`、`Renderer`。
 2. 执行适配器：`local`、`modal`、`http_api`。
+3. 展示/控制客户端：Vue 浏览器、批处理 CLI、或其他遵守 API 的客户端。
 
 例如 `MTU OCR on Modal` 是“OCR 阶段端口 + Modal 执行适配器 + MTU 实现”的组合。
 更换 OCR 模型只改变配置和适配器注册，不改变路由、书架、编辑器或页面格式。
+
+完整 profile 把五个阶段的已注册适配器组合成一次**自动运行**。它不是视觉工作流编辑器，
+也不是另一套编排引擎：步骤图仍由 pipeline controller 拥有。这样可以把 GPU、API 模型和
+渲染器整体换掉，同时保留“打开页面后自动处理并出图”的行为。
 
 多个阶段可以共享同一个底层客户端和模型容器，但对上层仍暴露独立契约。这样既能在 Modal
 复用已加载模型，又不会把检测与 OCR 永久绑死。
@@ -142,6 +153,7 @@ detect → ocr → translate → inpaint → render
 
 - Modal Worker 与远程任务队列。
 - MTU Python 适配器及其字段转换测试。
+- 非本地 stage adapter、非本地完整 profile 与它们的跨进程契约测试。
 - DeepSeek 专用配置界面；现有 OpenAI-compatible 能力是否足够仍需验证。
 - 版本化的跨语言项目 schema、字段 provenance、页面 revision 和人工锁管理 UI。
 - Oracle 部署、备份和恢复方案。

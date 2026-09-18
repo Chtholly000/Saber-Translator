@@ -17,6 +17,12 @@ import type {
 
 export interface ParallelDetectParams {
   image: string
+  /** Complete automatic-pipeline profile; defaults to local_saber on the server. */
+  pipeline_profile?: string
+  /** Stage-specific execution adapter. Takes precedence over the profile. */
+  detector_backend?: string
+  /** @deprecated Use detector_backend. Kept while the extraction seam is split. */
+  extraction_backend?: string
   translation_mode?: string
   translation_scope?: string
   detector_type?: string
@@ -35,6 +41,8 @@ export interface ParallelDetectParams {
 
 export interface ParallelDetectResponse {
   success: boolean
+  pipeline_profile?: string
+  execution_backend?: string
   bubble_coords?: number[][]
   bubble_angles?: number[]
   bubble_polygons?: number[][][]
@@ -53,6 +61,12 @@ export async function parallelDetect(params: ParallelDetectParams): Promise<Para
 export interface ParallelOcrParams {
   image: string
   bubble_coords: number[][]
+  /** Complete automatic-pipeline profile; defaults to local_saber on the server. */
+  pipeline_profile?: string
+  /** Stage-specific execution adapter. Takes precedence over the profile. */
+  ocr_backend?: string
+  /** @deprecated Use ocr_backend. Kept while the extraction seam is split. */
+  extraction_backend?: string
   translation_mode?: string
   translation_scope?: string
   source_language?: string
@@ -89,6 +103,8 @@ export interface ParallelOcrParams {
 
 export interface ParallelOcrResponse {
   success: boolean
+  pipeline_profile?: string
+  execution_backend?: string
   original_texts?: string[]
   ocr_results?: OcrResult[]
   textlines_per_bubble?: any[]
@@ -128,6 +144,10 @@ export async function parallelColor(params: ParallelColorParams): Promise<Parall
 
 export interface ParallelTranslateParams {
   original_texts: string[]
+  /** Complete automatic-pipeline profile; defaults to local_saber on the server. */
+  pipeline_profile?: string
+  /** Stage-specific execution adapter. Takes precedence over the profile. */
+  translator_backend?: string
   translation_mode?: string
   translation_scope?: string
   target_language: string
@@ -158,6 +178,8 @@ export interface ParallelTranslateParams {
 
 export interface ParallelTranslateResponse {
   success: boolean
+  pipeline_profile?: string
+  execution_backend?: string
   translated_texts?: string[]
   textbox_texts?: string[]
   warnings?: TranslationWarning[]
@@ -173,6 +195,10 @@ export async function parallelTranslate(params: ParallelTranslateParams): Promis
 export interface ParallelInpaintParams {
   image: string
   bubble_coords: number[][]
+  /** Complete automatic-pipeline profile; defaults to local_saber on the server. */
+  pipeline_profile?: string
+  /** Stage-specific execution adapter. Takes precedence over the profile. */
+  inpainter_backend?: string
   translation_mode?: string
   translation_scope?: string
   bubble_polygons?: number[][][]
@@ -187,6 +213,8 @@ export interface ParallelInpaintParams {
 
 export interface ParallelInpaintResponse {
   success: boolean
+  pipeline_profile?: string
+  execution_backend?: string
   clean_image?: string
   error?: string
 }
@@ -200,6 +228,10 @@ export async function parallelInpaint(params: ParallelInpaintParams): Promise<Pa
 export interface ParallelRenderParams {
   clean_image: string
   bubble_states: BubbleState[]
+  /** Complete automatic-pipeline profile; defaults to local_saber on the server. */
+  pipeline_profile?: string
+  /** Stage-specific execution adapter. Takes precedence over the profile. */
+  renderer_backend?: string
   translation_mode?: string
   translation_scope?: string
   fontSize?: number
@@ -217,6 +249,8 @@ export interface ParallelRenderParams {
 
 export interface ParallelRenderResponse {
   success: boolean
+  pipeline_profile?: string
+  execution_backend?: string
   final_image?: string
   bubble_states?: BubbleState[]
   error?: string

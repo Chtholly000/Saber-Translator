@@ -36,6 +36,19 @@ MTU 有较完整的 README、`doc/DEVELOPMENT.md`、工作流说明、双语 Wik
 MTU 的配置枚举和注册表是内部实现事实，不是 Saber 的用户配置 schema。`TextBlock` 也只能在
 MTU adapter 内部存在。
 
+### v3.0.4 架构审计结论
+
+MTU 的 `detection/__init__.py`、`ocr/__init__.py`、`inpainting/__init__.py` 与
+`translators/__init__.py` 都有“名称/枚举 → 实现类”的内部注册映射，并提供惰性 `prepare`、
+`dispatch`、缓存和 `unload`。`rendering/__init__.py` 同样按 `Renderer` 配置选择渲染器。
+这正是 Saber 可以借鉴的**按阶段注册、惰性加载、worker 内缓存**模式。
+
+但这些注册表是 MTU 代码内的固定枚举，不是可跨进程发现的插件协议；完整执行顺序、可变
+`Context`、中间对象和错误处理仍集中在约五千行的 `manga_translator/manga_translator.py`。
+其 Qt `desktop_qt_ui` 与 editor 模块也直接依赖 MTU `TextBlock` 和配置，属于 MTU 自己的客户端，
+不是可替换的 Saber 编辑器接口。故 MTU 应提供模型实现，不能成为 Saber 的项目控制器、持久化
+格式、自动流水线或浏览器客户端。
+
 ## 推荐接入方式
 
 首选在 Modal Worker 中以固定版本 Python 依赖调用 MTU 的窄模块，并在 worker 边界完成转换：
@@ -52,6 +65,10 @@ Saber stage request
 因为那会重复 Saber 已有的编排、翻译和项目状态。
 
 可以先用完整 MTU API 做一次性对照测试，但生产适配器应使用我们需要的最小阶段入口。
+
+Saber 的自动 profile 仅在各阶段 adapter 已注册并通过契约测试后才引用它们。例如未来的
+`modal_mtu` 可以组合 MTU 的 detect/OCR/inpaint/render adapter；翻译阶段可以独立为 DeepSeek
+adapter。profile 不能直接指向 MTU 完整 controller，也不能把 MTU Qt editor 当作 profile 的一项。
 
 ## 禁止做法
 

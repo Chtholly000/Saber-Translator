@@ -48,6 +48,13 @@ IoU 匹配既有气泡；检测不到的人工锁定气泡仍保留，用户必�
 当前六个主要原子 API 位于 `src/app/api/translation/parallel_routes.py`。请求和响应的
 TypeScript 形状位于 `vue-frontend/src/api/parallelTranslate.ts`。
 
+五个主步骤请求现在都可携带 `pipeline_profile`；省略时固定为 `local_saber`。成功响应会带回
+实际 `pipeline_profile` 与 `execution_backend`，作为轻量 provenance，不影响既有结果字段。
+单阶段覆盖名分别是 `detector_backend`、`ocr_backend`、`translator_backend`、`inpainter_backend`
+与 `renderer_backend`。过渡期内 detect/OCR 仍接受旧 `extraction_backend`；它与阶段专用名同时
+出现且不一致时必须是请求错误，不能猜测或回退。当前只有 `local_saber` 注册，尚不能声明
+`modal_mtu` 或 `deepseek` 已可运行。
+
 ## TARGET：持久工程文档
 
 运行时对象不应直接成为永远不变的磁盘格式。目标持久结构需要显式版本：
@@ -147,6 +154,9 @@ backend/model provenance。
 
 结果写回前比较 `page_revision`：如果用户在计算期间修改了页面，结果进入待合并状态，不能
 无条件覆盖。相同幂等键的重试应返回同一结果或同一活动任务。
+
+profile 是任务输入的一部分；远程模式保存其名称和每阶段实际 adapter/model provenance。
+客户端（Vue、CLI 或其他界面）不是 profile 字段，不能因为换了界面而改变计算结果。
 
 ## 错误分类
 
