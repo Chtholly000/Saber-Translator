@@ -70,6 +70,19 @@ Saber 的自动 profile 仅在各阶段 adapter 已注册并通过契约测试�
 `modal_mtu` 可以组合 MTU 的 detect/OCR/inpaint/render adapter；翻译阶段可以独立为 DeepSeek
 adapter。profile 不能直接指向 MTU 完整 controller，也不能把 MTU Qt editor 当作 profile 的一项。
 
+### CURRENT：Worker v1 接缝
+
+Saber 现有 `src/core/mtu_worker_contract.py` 和
+`src/core/extraction_backends/mtu_modal.py` 定义了 detect/OCR 的受测接缝。它们不导入 Modal、
+不安装 MTU，也不会自行注册 `modal_mtu` profile。部署代码将来只需注入一个具有
+`execute(payload) -> payload` 的 client，并在受控 Worker 镜像内以本文件固定 revision 调用 MTU
+窄模块。
+
+Worker 请求/响应使用 `saber-mtu-worker/v1`；严禁把 API Key、签名 artifact URL、HTTP response、
+Modal object、Pydantic Config 或 `TextBlock` 放进 payload。OCR 必须按 `region-N` ID 对齐并完整返回；
+detect 的可选 mask 必须是与输入同尺寸的 base64 PNG。真实 Worker 接入前先用契约 fixture 覆盖横排、
+竖排、旋转框、空页和 mask 尺寸不符。
+
 ## 禁止做法
 
 - 把 `manga_translator/` 整目录复制进本仓库。

@@ -234,6 +234,7 @@ export const useSettingsStore = defineStore('settings', () => {
         const defaults = createDefaultSettings()
         // 深度合并，确保新增的默认值不会丢失
         settings.value = deepMerge(defaults, parsed)
+        settings.value.settingsSchemaVersion = defaults.settingsSchemaVersion
         normalizeProviderAliases()
         settings.value.textDetector = normalizeTextDetector(settings.value.textDetector)
         // 确保数值类型正确
@@ -468,7 +469,7 @@ export const useSettingsStore = defineStore('settings', () => {
       )
     }))
 
-    settings.value.settingsSchemaVersion = 2
+    settings.value.settingsSchemaVersion = 4
 
     // 迁移旧版服务商名称
     if ((tr.provider as string) === 'baidu') {
@@ -888,6 +889,7 @@ export const useSettingsStore = defineStore('settings', () => {
         stripDeprecatedSettingsFields(backendSettings) as Partial<TranslationSettings>
       )
       settings.value = mergedSettings
+      settings.value.settingsSchemaVersion = defaults.settingsSchemaVersion
       const nestedProviderConfigs = backendSettings.providerConfigs
       if (nestedProviderConfigs && typeof nestedProviderConfigs === 'object') {
         providerConfigs.value = {
@@ -1306,7 +1308,7 @@ export const useSettingsStore = defineStore('settings', () => {
       stripLegacyOpenAiMirrorFields()
 
       const backendSettings: Record<string, unknown> = JSON.parse(JSON.stringify(settings.value))
-      backendSettings.settingsSchemaVersion = 3
+      backendSettings.settingsSchemaVersion = 4
       backendSettings.providerConfigs = buildProviderSettingsForBackend()
 
       const response = await saveUserSettings(backendSettings)
@@ -1359,7 +1361,7 @@ export const useSettingsStore = defineStore('settings', () => {
       backendProviderConfigs.pluginAgent = JSON.parse(JSON.stringify(providerConfigs.value.pluginAgent))
       backendSettings.providerConfigs = backendProviderConfigs
 
-      backendSettings.settingsSchemaVersion = 3
+      backendSettings.settingsSchemaVersion = 4
 
       const saveResponse = await saveUserSettings(backendSettings)
       if (saveResponse.success) {

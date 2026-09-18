@@ -245,6 +245,8 @@ export interface TextStyleSettings {
  */
 export interface TranslationSettings {
   settingsSchemaVersion: number
+  // 一次自动运行使用的完整计算组合；当前唯一内置值为 local_saber
+  automaticPipelineProfile: string
   // 文字样式设置
   textStyle: TextStyleSettings
 

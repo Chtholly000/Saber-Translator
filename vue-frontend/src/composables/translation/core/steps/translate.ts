@@ -15,6 +15,7 @@ import { serializeOpenAICompatibleOptionsForApi } from '@/utils/openaiOptions'
 export interface TranslateInput {
     imageIndex: number
     translationMode?: string
+    pipelineProfile?: string
     originalTexts: string[]
     settingsSnapshot: TranslationSettings
     bookTranslationConstraints: BookTranslationConstraints
@@ -57,6 +58,7 @@ function resolveEffectiveTranslationWarnings(params: {
 
 export async function executeTranslate(input: TranslateInput): Promise<TranslateOutput> {
     const { originalTexts, translationMode: pluginMode = 'standard', settingsSnapshot } = input
+    const pipelineProfile = input.pipelineProfile || 'local_saber'
 
     if (originalTexts.length === 0) {
         return {
@@ -74,6 +76,11 @@ export async function executeTranslate(input: TranslateInput): Promise<Translate
     })
 
     if (requestMode === 'single') {
+        if (pipelineProfile !== 'local_saber') {
+            throw new Error(
+                '逐气泡翻译尚未接入远程 pipeline profile；请使用整页批量翻译，或切回 local_saber'
+            )
+        }
         // ==================== 逐气泡翻译模式 ====================
         console.log(`[翻译] 使用逐气泡翻译模式，共 ${originalTexts.length} 个气泡`)
 
@@ -191,6 +198,7 @@ export async function executeTranslate(input: TranslateInput): Promise<Translate
 
         const response: ParallelTranslateResponse = await parallelTranslate({
             original_texts: originalTexts,
+            pipeline_profile: pipelineProfile,
             translation_mode: pluginMode,
             translation_scope: 'image',
             target_language: settings.targetLanguage,

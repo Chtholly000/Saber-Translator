@@ -17,6 +17,7 @@ export interface DetectionInput {
     imageIndex: number
     image: AppImageData
     translationMode?: string
+    pipelineProfile?: string
     forceDetect?: boolean
     settingsSnapshot: TranslationSettings
 }
@@ -135,6 +136,7 @@ function mergeDetectedBubbleStates(
 
 export async function executeDetection(input: DetectionInput): Promise<DetectionOutput> {
     const { imageIndex, image, translationMode = 'standard', forceDetect = false, settingsSnapshot } = input
+    const pipelineProfile = input.pipelineProfile || 'local_saber'
 
     // 如果图片已有 bubbleStates 数据（包括空数组），跳过检测
     // - bubbleStates === null/undefined: 从未处理过，需要自动检测
@@ -184,6 +186,7 @@ export async function executeDetection(input: DetectionInput): Promise<Detection
     // 步骤1: 使用用户选择的检测器进行检测（获取文本框）
     const response: ParallelDetectResponse = await parallelDetect({
         image: base64,
+        pipeline_profile: pipelineProfile,
         translation_mode: translationMode,
         translation_scope: 'image',
         detector_type: settings.textDetector,
@@ -213,6 +216,7 @@ export async function executeDetection(input: DetectionInput): Promise<Detection
     try {
         const maskResponse: ParallelDetectResponse = await parallelDetect({
             image: base64,
+            pipeline_profile: pipelineProfile,
             translation_mode: translationMode,
             translation_scope: 'image',
             detector_type: 'default',  // 固定使用 Default 检测器生成掩膜

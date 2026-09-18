@@ -11,6 +11,7 @@ export interface InpaintInput {
     imageIndex: number
     image: AppImageData
     translationMode?: string
+    pipelineProfile?: string
     bubbleCoords: BubbleCoords[]
     bubblePolygons: number[][][]
     textMask?: string      // 文字检测掩膜
@@ -24,6 +25,7 @@ export interface InpaintOutput {
 
 export async function executeInpaint(input: InpaintInput): Promise<InpaintOutput> {
     const { image, bubbleCoords, bubblePolygons, textMask, userMask, translationMode = 'standard', settingsSnapshot } = input
+    const pipelineProfile = input.pipelineProfile || 'local_saber'
 
     if (bubbleCoords.length === 0) {
         return { cleanImage: extractBase64(image.originalDataURL) }
@@ -38,6 +40,7 @@ export async function executeInpaint(input: InpaintInput): Promise<InpaintOutput
 
     const response: ParallelInpaintResponse = await parallelInpaint({
         image: base64,
+        pipeline_profile: pipelineProfile,
         bubble_coords: bubbleCoords,
         translation_mode: translationMode,
         translation_scope: 'image',
@@ -64,4 +67,3 @@ function extractBase64(dataUrl: string): string {
     }
     return dataUrl
 }
-

@@ -145,6 +145,7 @@ function buildPageMeta(context: TaskContext, runtime: PipelineRuntime): Record<s
       : Boolean(image.translationFailed)
   return {
     bubbleStateContractVersion: BUBBLE_STATE_CONTRACT_VERSION,
+    pipelineProfile: runtime.pipelineProfile,
     fileName: image.fileName,
     translationStatus,
     translationFailed,

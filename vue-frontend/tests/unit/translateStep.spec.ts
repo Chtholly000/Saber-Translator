@@ -47,6 +47,7 @@ describe('executeTranslate', () => {
 
     const result = await executeTranslate({
       imageIndex: 0,
+      pipelineProfile: 'fixture_remote',
       originalTexts: ['Alice <keep>'],
       settingsSnapshot: settingsStore.settings,
       bookTranslationConstraints: constraints,
@@ -55,6 +56,7 @@ describe('executeTranslate', () => {
 
     expect(parallelTranslateMock).toHaveBeenCalledWith(
       expect.objectContaining({
+        pipeline_profile: 'fixture_remote',
         glossary_settings: constraints.glossary,
         non_translate_settings: constraints.non_translate,
       }),
@@ -247,5 +249,21 @@ describe('executeTranslate', () => {
         actualTranslation: '阿莉斯',
       },
     ])
+  })
+
+  it('rejects a non-local profile before the legacy single-text route can bypass it', async () => {
+    const settingsStore = useSettingsStore()
+    settingsStore.settings.translation.translationMode = 'single'
+
+    await expect(executeTranslate({
+      imageIndex: 0,
+      pipelineProfile: 'modal_mtu',
+      originalTexts: ['Alice'],
+      settingsSnapshot: settingsStore.settings,
+      bookTranslationConstraints: createEmptyBookTranslationConstraints(),
+      isBookshelfMode: false,
+    })).rejects.toThrow('逐气泡翻译尚未接入远程 pipeline profile')
+
+    expect(translateSingleTextMock).not.toHaveBeenCalled()
   })
 })

@@ -15,6 +15,7 @@ export interface OcrInput {
     imageIndex: number
     image: AppImageData
     translationMode?: string
+    pipelineProfile?: string
     bubbleCoords: BubbleCoords[]
     bubbleStates?: BubbleState[] | null
     textlinesPerBubble?: any[]
@@ -28,6 +29,7 @@ export interface OcrOutput {
 
 export async function executeOcr(input: OcrInput): Promise<OcrOutput> {
     const { image, bubbleCoords, bubbleStates, textlinesPerBubble, translationMode = 'standard', settingsSnapshot } = input
+    const pipelineProfile = input.pipelineProfile || 'local_saber'
 
     if (bubbleCoords.length === 0) {
         return { originalTexts: [], ocrResults: [] }
@@ -54,6 +56,7 @@ export async function executeOcr(input: OcrInput): Promise<OcrOutput> {
 
     const response: ParallelOcrResponse = await parallelOcr({
         image: base64,
+        pipeline_profile: pipelineProfile,
         bubble_coords: bubbleCoords,
         translation_mode: translationMode,
         translation_scope: 'image',

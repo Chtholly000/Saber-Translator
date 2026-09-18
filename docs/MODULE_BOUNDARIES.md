@@ -16,7 +16,7 @@
 | 插件中间件 | `src/plugins/`、`plugins/` | 步骤前后 payload/result 扩展 | 公开插件上下文 | 模型生命周期、任务队列、核心状态替代 |
 | 页面持久化 | `src/core/page_storage.py` | 会话路径、页面图片和元数据原子写入 | 版本化领域文档 | 模型推理和 UI 组件 |
 | 书架 | `src/core/bookshelf_manager.py` 与相应 API/store | 书、章节、标签与章节会话关系 | 页面持久化接口 | GPU 调度细节 |
-| MTU 适配器 | 尚未创建 | Saber 契约与固定 MTU 版本之间的转换 | MTU 公共/经验证入口 | 向 UI 泄漏 `TextBlock` 或 MTU 配置对象 |
+| MTU Worker 契约与适配器 | `src/core/mtu_worker_contract.py`、`src/core/extraction_backends/mtu_modal.py` | Saber/固定 MTU worker 之间的 detect/OCR JSON 转换 | PIL、Saber OCR 类型、注入的传输 client | Modal/MTU 对象、凭据或 `TextBlock` 泄漏到上层 |
 | Modal 适配器 | 尚未创建 | 作业提交、状态、artifact 传输和错误转换 | 阶段端口、远程客户端 | 项目真相、书架真相 |
 
 ## 目标依赖方向
@@ -63,6 +63,9 @@ inpaint，但调用它的三个适配器仍分别实现自己的端口。
 - 适配器返回统一错误分类：配置错误、不可重试输入错误、可重试远程错误、资源不足和取消。
 - 适配器不得直接写书架或页面文件；写回由应用层在版本检查后完成。
 - 后端名称、模型版本、耗时和置信度可以作为 provenance 保存，但不得改变核心字段语义。
+- MTU Worker 请求必须携带明确契约版本和阶段名；图片、区域与非敏感选项是唯一输入。
+  Worker 不能接收调用方 API Key、授权头、签名 URL 或 MTU 内部对象。响应缺失区域、阶段不符、
+  mask 尺寸不符时，适配器必须失败，不得将本地模型作为隐式 fallback。
 
 ## 自动 profile
 
@@ -80,6 +83,11 @@ API Key、模型参数或界面配置。应用启动时可用纯数据注册完�
 registry。现在所有五个主步骤都会解析 profile，并且都只有 `local` 内置实现。新增
 `modal_mtu`、`deepseek` 等 profile 前，必须先实现对应阶段端口、适配器和契约测试；不能只把
 名称写进配置表来假装已经可用。
+
+`automaticPipelineProfile` 是当前浏览器设置中的 profile 名；`createPipelineRuntime` 在任务启动时
+将它规范化并冻结为 `pipelineProfile`，随后原子步骤都只传这个 runtime 值。它同时写入页面元数据
+作为本次生成的 provenance。当前没有 profile 选择 UI，因为唯一已注册值仍是 `local_saber`；新增
+已验证的 profile 后才能暴露选择项。
 
 ## 插件与后端的区别
 

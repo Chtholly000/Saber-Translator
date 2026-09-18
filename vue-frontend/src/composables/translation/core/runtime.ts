@@ -13,6 +13,7 @@ export type TaskExecutionStatus = 'pending' | 'processing' | 'completed' | 'fail
 
 export interface PipelineRuntime {
   mode: TranslationMode
+  pipelineProfile: string
   settingsSnapshot: TranslationSettings
   bookTranslationConstraints: BookTranslationConstraints
   savedTextStyles: SavedTextStyles | null
@@ -62,6 +63,12 @@ export interface TaskContext {
 
 function cloneDeep<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
+}
+
+function normalizePipelineProfile(value: unknown): string {
+  if (typeof value !== 'string') return 'local_saber'
+  const normalized = value.trim().toLowerCase().replace(/-/g, '_')
+  return normalized || 'local_saber'
 }
 
 export function buildSavedTextStylesFromSettings(settings: TranslationSettings): SavedTextStyles {
@@ -148,6 +155,7 @@ export function createPipelineRuntime(
 
   return {
     mode,
+    pipelineProfile: normalizePipelineProfile(settingsSnapshot.automaticPipelineProfile),
     settingsSnapshot,
     bookTranslationConstraints: cloneDeep(
       options?.bookTranslationConstraints

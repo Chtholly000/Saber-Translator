@@ -47,6 +47,15 @@ translate/inpaint/render 使用各自的 `stage_backends/` registry。detect/OCR
 Vue 是当前浏览器客户端，不是自动流水线的所有者。它可以被另一客户端（例如批处理客户端）
 替换，只要后者遵守任务/API 和持久化契约；MTU 的 Qt 界面也不能直接当作 Saber 客户端嵌入。
 
+自动任务在 `createPipelineRuntime` 启动时从 `automaticPipelineProfile` 取得并冻结 profile；五个主
+步骤都将同一 `pipeline_profile` 发给 API，页面元数据记录 `pipelineProfile`。当前唯一已注册的
+profile 是 `local_saber`，因此这不改变默认计算位置。旧的逐气泡翻译走独立 API；它明确拒绝任何
+非本地 profile，避免将来绕过适配器边界。
+
+检测/OCR 已有一个无 Modal SDK 依赖的 MTU Worker v1 契约和注入式 adapter。它把 PIL 图片、区域、
+非敏感选项序列化为 JSON，接收规范化区域、PNG mask 和 OCR 结果；它不启动 worker，也不下载 MTU
+或模型。实际 Modal 部署只应实现这个受测 client，而不是向路由泄漏 Modal 对象。
+
 插件系统只在步骤执行前后改写 payload/result。插件不能安全地承担模型生命周期、远程任务、
 幂等重试或大型图片传输，因此插件与后端适配器必须保持不同概念。
 
@@ -152,7 +161,7 @@ detect → ocr → translate → inpaint → render
 ## 尚未实施
 
 - Modal Worker 与远程任务队列。
-- MTU Python 适配器及其字段转换测试。
+- 实际 MTU Worker 镜像、Modal client 和端到端字段转换 fixture（v1 契约/注入式 adapter 已有）。
 - 非本地 stage adapter、非本地完整 profile 与它们的跨进程契约测试。
 - DeepSeek 专用配置界面；现有 OpenAI-compatible 能力是否足够仍需验证。
 - 版本化的跨语言项目 schema、字段 provenance、页面 revision 和人工锁管理 UI。

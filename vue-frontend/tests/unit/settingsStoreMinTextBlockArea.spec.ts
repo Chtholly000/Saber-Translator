@@ -57,6 +57,8 @@ describe('settings store min text block area percent', () => {
     store.loadFromStorage()
 
     expect(store.settings.minTextBlockAreaPercent).toBe(0)
+    expect(store.settings.automaticPipelineProfile).toBe('local_saber')
+    expect(store.settings.settingsSchemaVersion).toBe(4)
   })
 
   it('saves minTextBlockAreaPercent to backend settings', async () => {
@@ -68,7 +70,7 @@ describe('settings store min text block area percent', () => {
     expect(saved).toBe(true)
     expect(saveUserSettingsMock).toHaveBeenCalledWith(expect.objectContaining({
       minTextBlockAreaPercent: 2.5,
-      settingsSchemaVersion: 3
+      settingsSchemaVersion: 4
     }))
   })
 })

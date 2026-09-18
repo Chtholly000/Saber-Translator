@@ -55,6 +55,13 @@ TypeScript 形状位于 `vue-frontend/src/api/parallelTranslate.ts`。
 出现且不一致时必须是请求错误，不能猜测或回退。当前只有 `local_saber` 注册，尚不能声明
 `modal_mtu` 或 `deepseek` 已可运行。
 
+浏览器设置的 `automaticPipelineProfile` 在 `PipelineRuntime` 创建时被固定为 `pipelineProfile`；同一
+自动运行中的 detect、OCR、translate、inpaint、render 只能使用这一值。保存页面时该值写入
+`pipelineProfile` provenance。逐气泡翻译尚未迁移到阶段后端，因此非 `local_saber` profile 必须
+在前端明确失败，不能无提示改走旧单气泡 API。
+
+`automaticPipelineProfile` 随设置 schema v4 一同持久化；旧设置在加载时由默认值补齐并升级到 v4。
+
 ## TARGET：持久工程文档
 
 运行时对象不应直接成为永远不变的磁盘格式。目标持久结构需要显式版本：
@@ -128,6 +135,16 @@ backend/model provenance。
 输入：原图 artifact、带 ID 的 regions、OCR 配置。
 
 输出：按 `bubble_id` 对应的文本、置信度、置信度是否受支持、实际引擎、fallback 信息。
+
+### CURRENT：MTU Worker v1（detect / ocr）
+
+`src/core/mtu_worker_contract.py` 定义跨进程 JSON 契约 `saber-mtu-worker/v1`。detect 请求包含 PNG
+图片和非敏感检测选项；响应为稳定顺序的 regions、可选 PNG `text_mask`。OCR 请求把每个区域表示
+为请求生成的稳定 `region-N` ID、坐标和文本行；响应必须逐一回传相同 ID。适配器将结果转换为
+Saber detection dict 和 `OcrResult`，不返回 MTU `TextBlock`。
+
+Mask 与输入图片的宽高必须完全一致。缺失/重复/未知 OCR ID、错误 stage、错误契约版本、越界坐标
+或敏感调用方凭据都会导致契约错误；这些不是可静默 fallback 的情形。
 
 ### translate
 

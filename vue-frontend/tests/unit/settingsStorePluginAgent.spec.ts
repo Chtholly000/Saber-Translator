@@ -122,7 +122,7 @@ describe('settings store plugin agent configuration', () => {
     )
     expect(payload.pluginAgent.rpmLimit).toBeUndefined()
     expect(payload.pluginAgent.useStream).toBeUndefined()
-    expect(payload.settingsSchemaVersion).toBe(3)
+    expect(payload.settingsSchemaVersion).toBe(4)
   })
 
   it('resets plugin agent openai options to defaults when switching to uncached provider', () => {

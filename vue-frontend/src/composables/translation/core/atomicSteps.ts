@@ -78,6 +78,7 @@ export async function executeAtomicStep(
         imageIndex: context.imageIndex,
         image: context.sourceImage,
         translationMode: runtime.mode,
+        pipelineProfile: runtime.pipelineProfile,
         forceDetect: false,
         settingsSnapshot: runtime.settingsSnapshot,
       })
@@ -99,6 +100,7 @@ export async function executeAtomicStep(
         imageIndex: context.imageIndex,
         image: context.sourceImage,
         translationMode: runtime.mode,
+        pipelineProfile: runtime.pipelineProfile,
         bubbleCoords: context.bubbleCoords,
         bubbleStates: context.bubbleStates,
         textlinesPerBubble: context.textlinesPerBubble,
@@ -156,6 +158,7 @@ export async function executeAtomicStep(
       const result = await executeTranslate({
         imageIndex: context.imageIndex,
         translationMode: runtime.mode,
+        pipelineProfile: runtime.pipelineProfile,
         originalTexts: context.originalTexts,
         settingsSnapshot: runtime.settingsSnapshot,
         bookTranslationConstraints: runtime.bookTranslationConstraints,
@@ -180,6 +183,7 @@ export async function executeAtomicStep(
         imageIndex: context.imageIndex,
         image: context.sourceImage,
         translationMode: runtime.mode,
+        pipelineProfile: runtime.pipelineProfile,
         bubbleCoords: context.bubbleCoords,
         bubblePolygons: context.bubblePolygons,
         textMask: context.textMask,
@@ -224,6 +228,7 @@ export async function executeAtomicStep(
         colors: context.colors,
         savedTextStyles: runtime.savedTextStyles,
         currentMode: runtime.mode,
+        pipelineProfile: runtime.pipelineProfile,
         settingsSnapshot: runtime.settingsSnapshot,
         renderStylePolicy: {
           fontSize: runtime.savedTextStyles?.autoFontSize ? 'initialize_auto' : 'preserve',

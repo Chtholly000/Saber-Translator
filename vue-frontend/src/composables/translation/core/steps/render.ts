@@ -35,6 +35,7 @@ export interface RenderInput {
     }>
     savedTextStyles?: SavedTextStyles | null
     currentMode: string
+    pipelineProfile?: string
     settingsSnapshot: TranslationSettings
     renderStylePolicy: RenderStylePolicy
 }
@@ -102,6 +103,7 @@ export async function executeRender(input: RenderInput): Promise<RenderOutput> {
         colors,
         savedTextStyles,
         currentMode,
+        pipelineProfile = 'local_saber',
         settingsSnapshot,
         renderStylePolicy,
     } = input
@@ -198,6 +200,7 @@ export async function executeRender(input: RenderInput): Promise<RenderOutput> {
 
     const response: ParallelRenderResponse = await parallelRender({
         clean_image: cleanImage,
+        pipeline_profile: pipelineProfile,
         bubble_states: bubbleStates,
         translation_mode: currentMode,
         translation_scope: 'image',

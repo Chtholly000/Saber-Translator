@@ -191,7 +191,8 @@ export const DEFAULT_PARALLEL: ParallelSettings = {
 /** 创建默认翻译设置 */
 export function createDefaultSettings(): TranslationSettings {
   return {
-    settingsSchemaVersion: 3,
+    settingsSchemaVersion: 4,
+    automaticPipelineProfile: 'local_saber',
     textStyle: createDefaultTextStyle(),
     ocrEngine: 'manga_ocr',
     sourceLanguage: 'japanese',
