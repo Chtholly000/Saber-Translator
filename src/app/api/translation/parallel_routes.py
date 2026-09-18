@@ -18,6 +18,7 @@ from PIL import Image
 from flask import Blueprint, request, jsonify
 
 from src.core.detection import get_bubble_detection_result_with_auto_directions
+from src.core.extraction_backends import create_extraction_backend
 from src.core.ocr import recognize_ocr_results_in_bubbles
 from src.core.ocr_hybrid_manga_48 import validate_manga_48_hybrid_combo
 from src.core.ocr_types import ocr_results_to_dicts, extract_texts_from_ocr_results
@@ -49,6 +50,15 @@ from src.shared.ai_providers import normalize_provider_id
 
 parallel_bp = Blueprint('parallel', __name__, url_prefix='/api')
 logger = logging.getLogger('ParallelAPI')
+
+
+def _request_extraction_backend(data):
+    """Resolve local/remote execution without coupling routes to an adapter."""
+    return create_extraction_backend(
+        data.get('extraction_backend'),
+        local_detect=get_bubble_detection_result_with_auto_directions,
+        local_ocr=recognize_ocr_results_in_bubbles,
+    )
 
 
 def decode_base64_image(base64_str: str) -> np.ndarray:
@@ -175,7 +185,8 @@ def parallel_detect():
         min_text_block_area_percent = data.get('min_text_block_area_percent', 0)
         
         # 执行检测
-        result = get_bubble_detection_result_with_auto_directions(
+        extraction_backend = _request_extraction_backend(data)
+        result = extraction_backend.detect(
             img_pil,
             detector_type=detector_type,
             expand_ratio=expand_ratio,
@@ -196,7 +207,10 @@ def parallel_detect():
         auto_directions = result.get('auto_directions', [])
         
         # 输出检测结果日志（包括排版方向）
-        logger.info(f"检测完成 (检测器: {detector_type})，找到 {len(coords)} 个气泡，自动方向: {auto_directions}")
+        logger.info(
+            f"检测完成 (执行后端: {extraction_backend.name}, 检测器: {detector_type})，"
+            f"找到 {len(coords)} 个气泡，自动方向: {auto_directions}"
+        )
         
         # 处理掩膜
         raw_mask = None
@@ -222,6 +236,8 @@ def parallel_detect():
         )
         return jsonify(response_payload)
         
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
@@ -319,7 +335,8 @@ def parallel_ocr():
         img_pil = Image.fromarray(img)
         
         # 执行OCR
-        ocr_results = recognize_ocr_results_in_bubbles(
+        extraction_backend = _request_extraction_backend(data)
+        ocr_results = extraction_backend.ocr(
             img_pil,
             bubble_coords,
             source_language=source_language,
