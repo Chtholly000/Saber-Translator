@@ -17,18 +17,22 @@ import numpy as np
 from PIL import Image
 from flask import Blueprint, request, jsonify
 
-from src.core.detection import get_bubble_detection_result_with_auto_directions
+from src.core.local_stage_handlers import (
+    get_bubble_detection_result_with_auto_directions, recognize_ocr_results_in_bubbles,
+    validate_manga_48_hybrid_combo, translate_text_list, inpaint_bubbles,
+    render_bubbles_unified, calculate_auto_font_size, extract_bubble_colors,
+)
 from src.core.extraction_backends import create_extraction_backend
-from src.core.pipeline_profiles import resolve_stage_backend_request
+from src.core.pipeline_profiles import (
+    OPTIONAL_PIPELINE_STAGES,
+    PIPELINE_STAGES,
+    get_pipeline_profile,
+    registered_pipeline_profiles,
+    resolve_stage_backend_request,
+)
 from src.core.stage_backends import create_stage_backend
-from src.core.ocr import recognize_ocr_results_in_bubbles
-from src.core.ocr_hybrid_manga_48 import validate_manga_48_hybrid_combo
 from src.core.ocr_types import ocr_results_to_dicts, extract_texts_from_ocr_results
-from src.core.translation import translate_text_list
-from src.core.inpainting import inpaint_bubbles
-from src.core.rendering import render_bubbles_unified, calculate_auto_font_size
 from src.core.config_models import BubbleState, bubble_states_to_api_response
-from src.core.color_extractor import extract_bubble_colors
 from src.core.translation_constraints import (
     append_prompt_sections,
     build_glossary_prompt,
@@ -80,6 +84,7 @@ _STAGE_OVERRIDE_KEYS = {
     'translate': 'translator_backend',
     'inpaint': 'inpainter_backend',
     'render': 'renderer_backend',
+    'color': 'color_backend',
 }
 
 
@@ -184,6 +189,22 @@ def _default_batch_prompt(*, use_json_format: bool) -> str:
     if use_json_format:
         return constants.BATCH_TRANSLATE_JSON_SYSTEM_TEMPLATE
     return constants.BATCH_TRANSLATE_SYSTEM_TEMPLATE
+
+
+@parallel_bp.route('/parallel/profiles', methods=['GET'])
+def pipeline_profiles():
+    return jsonify({'success': True, 'profiles': [
+        {
+            'name': name,
+            # Expose the implicit local fallback for optional stages as an
+            # explicit fact to profile-selection clients.
+            'stage_backends': {
+                stage: get_pipeline_profile(name).backend_for(stage)
+                for stage in PIPELINE_STAGES + OPTIONAL_PIPELINE_STAGES
+            },
+        }
+        for name in registered_pipeline_profiles()
+    ]})
 
 
 @parallel_bp.route('/parallel/detect', methods=['POST'])
@@ -370,16 +391,14 @@ def parallel_ocr():
             'hybrid_ocr_threshold',
             data.get('ocr_confidence_threshold_48px', 0.2),
         )
-        if enable_hybrid_ocr:
+        if enable_hybrid_ocr and extraction_backend.name == 'local':
             validate_manga_48_hybrid_combo(ocr_engine, secondary_ocr_engine)
         
         # 转换为PIL图像
         img_pil = Image.fromarray(img)
         
         # 执行OCR
-        ocr_results = extraction_backend.ocr(
-            img_pil,
-            bubble_coords,
+        ocr_options = dict(
             source_language=source_language,
             ocr_engine=ocr_engine,
             textlines_per_bubble=textlines_per_bubble,
@@ -399,6 +418,12 @@ def parallel_ocr():
             secondary_ocr_engine=secondary_ocr_engine,
             hybrid_ocr_threshold=hybrid_ocr_threshold,
         )
+        if extraction_backend.name != 'local':
+            # Saved local-provider credentials/options never enter a worker request.
+            ocr_options = {key: ocr_options[key] for key in (
+                'source_language', 'textlines_per_bubble',
+            )}
+        ocr_results = extraction_backend.ocr(img_pil, bubble_coords, **ocr_options)
         response_payload = {
             'success': True,
             'pipeline_profile': pipeline_profile.name,
@@ -441,6 +466,7 @@ def parallel_color():
         )
         image_data = data.get('image')
         bubble_coords = data.get('bubble_coords', [])
+        pipeline_profile, color_backend = _request_stage_backend(data, 'color', extract_bubble_colors)
         
         if not image_data:
             return jsonify({'success': False, 'error': '缺少图片数据'})
@@ -448,6 +474,8 @@ def parallel_color():
         if not bubble_coords:
             response_payload = {
                 'success': True,
+                'pipeline_profile': pipeline_profile.name,
+                'execution_backend': color_backend.name,
                 'colors': []
             }
             response_payload = finalize_plugin_result(
@@ -467,7 +495,7 @@ def parallel_color():
         img_pil = Image.fromarray(img)
         
         # 使用便捷函数提取颜色（会自动初始化）
-        results = extract_bubble_colors(img_pil, bubble_coords, textlines_per_bubble)
+        results = color_backend.execute(img_pil, bubble_coords, textlines_per_bubble)
         
         def rgb_to_hex(rgb):
             """将RGB元组转换为十六进制颜色"""
@@ -490,6 +518,8 @@ def parallel_color():
         
         response_payload = {
             'success': True,
+            'pipeline_profile': pipeline_profile.name,
+            'execution_backend': color_backend.name,
             'colors': colors
         }
         response_payload = finalize_plugin_result(
@@ -703,7 +733,7 @@ def parallel_inpaint():
         
         img = decode_base64_image(image_data)
         
-        if not bubble_coords:
+        if not bubble_coords and not data.get('user_mask'):
             # 没有气泡，返回原图
             response_payload = {
                 'success': True,

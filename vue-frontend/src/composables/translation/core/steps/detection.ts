@@ -37,6 +37,7 @@ function createBubbleStatesFromDetection(
     result: {
         bubbleCoords: BubbleCoords[]
         bubbleAngles: number[]
+        bubblePolygons: number[][][]
         autoDirections: string[]
         textlinesPerBubble: BubbleTextline[][]
     },
@@ -59,7 +60,10 @@ function createBubbleStatesFromDetection(
 
         return createBubbleState({
             coords,
-            polygon: [],
+            // Preserve the detector's rotated outer boundary.  The inpaint
+            // stage consumes BubbleState polygons, so discarding it here
+            // silently turns a precise remote result back into a rectangle.
+            polygon: result.bubblePolygons[index] || [],
             originalText: image.originalTexts?.[index] || '',
             translatedText: image.bubbleTexts?.[index] || '',
             textboxText: image.textboxTexts?.[index] || '',
@@ -210,8 +214,9 @@ export async function executeDetection(input: DetectionInput): Promise<Detection
     // 步骤2: 固定使用 Default 检测器生成精确文字掩膜
     // 无论用户选择哪个检测器，都统一使用 Default 生成掩膜
     // 这样所有检测器都能享受精确掩膜的好处
-    let textMaskData: string | undefined = undefined
+    let textMaskData: string | undefined = response.raw_mask || undefined
 
+    if (pipelineProfile === 'local_saber') {
     console.log(`使用 Default 检测器生成精确文字掩膜...`)
     try {
         const maskResponse: ParallelDetectResponse = await parallelDetect({
@@ -238,6 +243,7 @@ export async function executeDetection(input: DetectionInput): Promise<Detection
     } catch (error) {
         console.error(`❌ 生成精确文字掩膜失败:`, error)
         // 掩膜生成失败不影响主流程，继续使用检测结果
+    }
     }
 
     const detectionResult = {

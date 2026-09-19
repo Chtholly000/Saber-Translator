@@ -51,7 +51,7 @@ class FakeWorkerClient:
                     "polygon": [[1, 2], [9, 2], [9, 8], [1, 8]],
                     "angle": 0,
                     "direction": "v",
-                    "textlines": [{"polygon": [[1, 2], [9, 8]], "direction": "v"}],
+                    "textlines": [{"polygon": [[1, 2], [9, 2], [9, 8], [1, 8]], "direction": "v"}],
                 }],
                 "text_mask": mask_payload(12, 10),
             }
@@ -86,7 +86,8 @@ class MtuWorkerAdapterTests(unittest.TestCase):
         self.assertEqual(request["contract_version"], MTU_WORKER_CONTRACT_VERSION)
         self.assertEqual(request["stage"], "detect")
         self.assertEqual(request["image"]["width"], 12)
-        self.assertEqual(request["options"], {"detector_type": "default"})
+        # UI-local model names never control the isolated worker's model choice.
+        self.assertEqual(request["options"], {})
 
     def test_ocr_preserves_request_order_and_returns_saber_result(self) -> None:
         results = self.backend.ocr(

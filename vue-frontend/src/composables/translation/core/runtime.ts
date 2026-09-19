@@ -141,6 +141,10 @@ export function createPipelineRuntime(
   }
 
   const settingsSnapshot = cloneDeep(sourceSettings)
+  const pipelineProfile = normalizePipelineProfile(settingsSnapshot.automaticPipelineProfile)
+  if (pipelineProfile !== 'local_saber' && (mode === 'hq' || mode === 'proofread')) {
+    throw new Error('远程计算方案目前支持普通翻译和去字；高质量翻译/校对尚未接入阶段适配器')
+  }
   const bookId = options?.bookId ?? sessionStore?.currentBookId ?? null
   const chapterId = options?.chapterId ?? sessionStore?.currentChapterId ?? null
   const sessionPath = options?.sessionPath ?? getBookshelfSessionPath(bookId, chapterId)
@@ -155,7 +159,7 @@ export function createPipelineRuntime(
 
   return {
     mode,
-    pipelineProfile: normalizePipelineProfile(settingsSnapshot.automaticPipelineProfile),
+    pipelineProfile,
     settingsSnapshot,
     bookTranslationConstraints: cloneDeep(
       options?.bookTranslationConstraints

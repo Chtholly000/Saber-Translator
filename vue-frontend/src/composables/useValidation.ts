@@ -394,6 +394,20 @@ export function useValidation() {
   ): boolean {
     let result: ValidationResult
 
+    const profile = settingsStore.settings.automaticPipelineProfile || 'local_saber'
+    if (profile !== 'local_saber') {
+      if (type === 'hq' || type === 'proofread') {
+        toast.error('远程计算方案尚不支持高质量翻译和校对，请使用普通整页翻译')
+        return false
+      }
+      if (type === 'normal' && settingsStore.settings.translation.translationMode === 'single') {
+        toast.error('远程计算方案请使用整页批量翻译')
+        return false
+      }
+      // Model choice and keys for this profile are validated by the server.
+      return true
+    }
+
     switch (type) {
       case 'normal':
         result = validateTranslationConfig()
@@ -427,6 +441,16 @@ export function useValidation() {
    * @returns 验证是否通过
    */
   function validateFullTranslationConfig(): boolean {
+    const profile = settingsStore.settings.automaticPipelineProfile || 'local_saber'
+    if (profile !== 'local_saber') {
+      // Remote profiles own their model choice and credentials on the server.
+      // Keep this legacy helper consistent with validateBeforeTranslation.
+      if (settingsStore.settings.translation.translationMode === 'single') {
+        toast.error('远程计算方案请使用整页批量翻译')
+        return false
+      }
+      return true
+    }
     // 先验证 OCR 配置
     const ocrResult = validateOcrConfig()
     if (!ocrResult.valid) {

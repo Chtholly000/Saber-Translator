@@ -25,11 +25,14 @@ class ModalMtuExtractionBackend:
 
     name = "modal_mtu"
 
-    def __init__(self, worker_client: MtuWorkerClient):
+    def __init__(self, worker_client: MtuWorkerClient, model_options=None):
         self._worker_client = worker_client
+        self._model_options = model_options
 
     def detect(self, image: Any, **options: Any) -> Dict[str, Any]:
         request_payload = build_mtu_detect_request(image, options)
+        if self._model_options is not None:
+            request_payload["options"] = dict(self._model_options.get("detect", {}))
         response_payload = self._worker_client.execute(request_payload)
         return normalize_mtu_detect_response(
             response_payload,
@@ -44,6 +47,9 @@ class ModalMtuExtractionBackend:
         **options: Any,
     ) -> List[Any]:
         request_payload = build_mtu_ocr_request(image, bubble_coords, options)
+        if self._model_options is not None:
+            request_payload["options"] = {**self._model_options.get("ocr", {}),
+                                          "source_language": options.get("source_language", "japanese")}
         response_payload = self._worker_client.execute(request_payload)
         return normalize_mtu_ocr_response(
             response_payload,

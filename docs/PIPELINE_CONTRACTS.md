@@ -42,21 +42,24 @@ IoU 匹配既有气泡；检测不到的人工锁定气泡仍保留，用户必�
 必须提供查看、解锁和“用本次模型结果覆盖”的明确操作，不能静默清除锁。
 
 页面元数据保存 `bubbleStateContractVersion: 1`，仅标识上述兼容契约，不等同于下面尚未实施
-的远程项目文档 schema。当前本地流水线仍在若干调用中使用同下标数组；远程适配器不得沿用
-这一做法，必须按 `bubbleId` 回传。
+的远程项目文档 schema。当前本地流水线仍在若干调用中使用同下标数组；现有 MTU Worker 已用
+请求内 `region-N` ID 对齐 OCR/color，页面级 `bubbleId`、revision 与异步写回仍是下面的 TARGET，
+不能假装已经实现。
 
-当前六个主要原子 API 位于 `src/app/api/translation/parallel_routes.py`。请求和响应的
-TypeScript 形状位于 `vue-frontend/src/api/parallelTranslate.ts`。
+当前五个核心原子 API（detect/OCR/translate/inpaint/render）和可选 color API 位于
+`src/app/api/translation/parallel_routes.py`。请求和响应的 TypeScript 形状位于
+`vue-frontend/src/api/parallelTranslate.ts`。
 
-五个主步骤请求现在都可携带 `pipeline_profile`；省略时固定为 `local_saber`。成功响应会带回
-实际 `pipeline_profile` 与 `execution_backend`，作为轻量 provenance，不影响既有结果字段。
-单阶段覆盖名分别是 `detector_backend`、`ocr_backend`、`translator_backend`、`inpainter_backend`
-与 `renderer_backend`。过渡期内 detect/OCR 仍接受旧 `extraction_backend`；它与阶段专用名同时
-出现且不一致时必须是请求错误，不能猜测或回退。当前只有 `local_saber` 注册，尚不能声明
-`modal_mtu` 或 `deepseek` 已可运行。
+五个核心步骤和 color 请求都可携带 `pipeline_profile`；省略时固定为 `local_saber`。成功响应会
+带回实际 `pipeline_profile` 与 `execution_backend`，作为轻量 provenance，不影响既有结果字段。
+单阶段覆盖名分别是 `detector_backend`、`ocr_backend`、`color_backend`、`translator_backend`、
+`inpainter_backend` 与 `renderer_backend`。过渡期内 detect/OCR 仍接受旧 `extraction_backend`；它与
+阶段专用名同时出现且不一致时必须是请求错误，不能猜测或回退。`local_saber` 永远内置；仅当
+`SABER_REMOTE_CONFIG` 装配成功时才会注册 `modal_mtu_deepseek`。该 profile 的存在表示代码和
+非秘密配置可用，并不宣称 Modal 镜像、权重或 GPU 推理已经通过实测。
 
 浏览器设置的 `automaticPipelineProfile` 在 `PipelineRuntime` 创建时被固定为 `pipelineProfile`；同一
-自动运行中的 detect、OCR、translate、inpaint、render 只能使用这一值。保存页面时该值写入
+自动运行中的 detect、OCR、color、translate、inpaint、render 只能使用这一值。保存页面时该值写入
 `pipelineProfile` provenance。逐气泡翻译尚未迁移到阶段后端，因此非 `local_saber` profile 必须
 在前端明确失败，不能无提示改走旧单气泡 API。
 
@@ -134,17 +137,25 @@ backend/model provenance。
 
 输入：原图 artifact、带 ID 的 regions、OCR 配置。
 
-输出：按 `bubble_id` 对应的文本、置信度、置信度是否受支持、实际引擎、fallback 信息。
+输出：按请求区域 ID 对应的文本、置信度、置信度是否受支持、实际引擎、fallback 信息。
 
-### CURRENT：MTU Worker v1（detect / ocr）
+### color
 
-`src/core/mtu_worker_contract.py` 定义跨进程 JSON 契约 `saber-mtu-worker/v1`。detect 请求包含 PNG
-图片和非敏感检测选项；响应为稳定顺序的 regions、可选 PNG `text_mask`。OCR 请求把每个区域表示
-为请求生成的稳定 `region-N` ID、坐标和文本行；响应必须逐一回传相同 ID。适配器将结果转换为
-Saber detection dict 和 `OcrResult`，不返回 MTU `TextBlock`。
+输入：原图 artifact、已有 regions 与文本行。
 
-Mask 与输入图片的宽高必须完全一致。缺失/重复/未知 OCR ID、错误 stage、错误契约版本、越界坐标
-或敏感调用方凭据都会导致契约错误；这些不是可静默 fallback 的情形。
+输出：与输入 region 顺序一一对应的前景/背景 RGB；没有文字时允许空颜色。该步骤不修改 OCR 文本。
+
+### CURRENT：MTU Worker v2（detect / ocr / color / inpaint）
+
+`src/core/mtu_worker_contract.py` 定义跨进程 JSON 契约 `saber-mtu-worker/v2`。detect 请求包含 PNG
+图片和服务器拥有的非敏感检测选项；响应为稳定顺序的 regions、可选 PNG `text_mask`。OCR/color
+请求把每个区域表示为请求生成的稳定 `region-N` ID、坐标和文本行；响应必须逐一回传相同 ID。
+inpaint 请求包含原图、单通道 repair mask 和服务器拥有的 inpaint 选项。适配器将结果转换为 Saber
+detection dict、`OcrResult`、颜色数组或 PNG，绝不返回 MTU `TextBlock` 或 Config。
+
+Mask 与输入图片的宽高必须完全一致。缺失/重复/未知 OCR ID、错误 stage、错误契约版本、越界坐标、
+错误图片格式或敏感调用方凭据都会导致契约错误；这些不是可静默 fallback 的情形。该契约已由离线
+Worker dispatcher fixture 覆盖，尚未以真实云端 GPU 权重验证。
 
 ### translate
 

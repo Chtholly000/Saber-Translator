@@ -5,10 +5,26 @@
  * 放在设置面板的"更多"tab中
  */
 
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { getPipelineProfiles, type PipelineProfileInfo } from '@/api/parallelTranslate'
 
 const settingsStore = useSettingsStore()
+const profiles = ref<PipelineProfileInfo[]>([])
+const profileError = ref('')
+onMounted(async () => {
+  try {
+    const response = await getPipelineProfiles()
+    profiles.value = response.profiles
+  } catch {
+    profileError.value = '无法读取服务器上的计算方案，当前选择保持不变'
+  }
+})
+const selectedProfile = computed({
+  get: () => settingsStore.settings.automaticPipelineProfile,
+  set: (value: string) => settingsStore.updateSettings({ automaticPipelineProfile: value }),
+})
+const currentProfileMissing = computed(() => !profiles.value.some(profile => profile.name === selectedProfile.value))
 
 const parallelEnabled = computed({
   get: () => settingsStore.settings.parallel.enabled,
@@ -37,6 +53,22 @@ const lockSize = computed({
 
 <template>
   <div class="parallel-settings">
+    <div class="settings-group">
+      <div class="settings-group-title">自动处理的计算方案</div>
+      <div class="settings-item">
+        <select v-model="selectedProfile" :disabled="profiles.length === 0">
+          <option v-if="currentProfileMissing" :value="selectedProfile">{{ selectedProfile }}（未加载或不可用）</option>
+          <option v-for="profile in profiles" :key="profile.name" :value="profile.name">
+            {{ profile.name === 'local_saber' ? 'Saber 本地计算' : profile.name === 'modal_mtu_deepseek' ? 'Modal MTU + DeepSeek' : profile.name }}
+          </option>
+        </select>
+        <div class="input-hint">方案在每次任务开始时固定；修改只影响下一次任务。</div>
+        <div v-if="selectedProfile !== 'local_saber'" class="input-hint">
+          远程方案使用服务器配置的检测、OCR、去字和翻译模型。支持普通整页翻译和去字，嵌字仍由 Saber 执行。配置可选不代表远程服务已通过实测。
+        </div>
+        <div v-if="profileError" role="alert">{{ profileError }}</div>
+      </div>
+    </div>
     <!-- 并行翻译设置 -->
     <div class="settings-group">
       <div class="settings-group-title">🚀 并行翻译</div>

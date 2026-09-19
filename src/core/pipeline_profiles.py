@@ -5,8 +5,8 @@ not contain model settings, credentials, UI state, or a workflow definition:
 those belong respectively to a stage adapter, secret/configuration layer, a
 presentation client, and the pipeline controller.
 
-Only ``local_saber`` is registered today. This is intentional: an unavailable
-remote profile must fail during selection instead of silently running locally.
+Only ``local_saber`` is built in. Remote profiles require explicit bootstrap
+configuration and must never silently fall back to local execution.
 """
 
 from dataclasses import dataclass
@@ -21,6 +21,7 @@ PIPELINE_STAGES: Tuple[str, ...] = (
     "inpaint",
     "render",
 )
+OPTIONAL_PIPELINE_STAGES = ("color",)
 
 
 class UnsupportedPipelineProfile(ValueError):
@@ -37,6 +38,9 @@ class PipelineProfile:
     def backend_for(self, stage: str) -> str:
         normalized_stage = _normalize_stage(stage)
         backend = self.stage_backends.get(normalized_stage)
+        if normalized_stage == "color" and backend is None:
+            # Backward compatibility for existing five-stage profiles.
+            backend = "local"
         if not backend:
             raise UnsupportedPipelineProfile(
                 f"执行 profile {self.name} 未配置阶段: {normalized_stage}"
@@ -51,7 +55,7 @@ def _normalize_profile_name(name: Optional[str]) -> str:
 
 def _normalize_stage(stage: str) -> str:
     normalized = str(stage or "").strip().lower().replace("-", "_")
-    if normalized not in PIPELINE_STAGES:
+    if normalized not in PIPELINE_STAGES + OPTIONAL_PIPELINE_STAGES:
         available = ", ".join(PIPELINE_STAGES)
         raise UnsupportedPipelineProfile(
             f"未知流水线阶段: {normalized or '<empty>'}（可用: {available}）"

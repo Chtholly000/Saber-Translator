@@ -11,13 +11,13 @@
 | Flask 路由 | `src/app/api/` | HTTP 验证、错误映射、调用应用服务 | 端口/服务、序列化器 | 模型实现细节、长期任务状态 |
 | 领域状态 | `src/core/config_models.py`、前端类型 | 气泡文字、几何、样式、OCR 元数据 | 纯数据类型 | Flask、Modal、MTU、数据库客户端 |
 | 当前算法实现 | `src/core/detection.py`、`ocr.py`、`inpainting.py`、`rendering.py`、`translation.py` | Saber 现有本地行为 | 领域类型、模型接口 | UI/书架所有权 |
-| 自动流水线 profile | `src/core/pipeline_profiles.py` | 一次自动运行的五个逻辑阶段后端选择 | 稳定后端名、阶段名 | 模型设置、凭据、UI 状态、步骤顺序 |
-| 后端端口与注册 | `src/core/extraction_backends/`、`src/core/stage_backends/` | detection/OCR 与 translate/inpaint/render 的阶段执行选择 | 纯 Python callable/协议、profile 解析结果 | Flask request、Pinia、磁盘会话 |
+| 自动流水线 profile | `src/core/pipeline_profiles.py` | 一次自动运行的五个核心阶段及可选 color 的后端选择 | 稳定后端名、阶段名 | 模型设置、凭据、UI 状态、步骤顺序 |
+| 后端端口与注册 | `src/core/extraction_backends/`、`src/core/stage_backends/` | detection/OCR 与 color/translate/inpaint/render 的阶段执行选择 | 纯 Python callable/协议、profile 解析结果 | Flask request、Pinia、磁盘会话 |
 | 插件中间件 | `src/plugins/`、`plugins/` | 步骤前后 payload/result 扩展 | 公开插件上下文 | 模型生命周期、任务队列、核心状态替代 |
 | 页面持久化 | `src/core/page_storage.py` | 会话路径、页面图片和元数据原子写入 | 版本化领域文档 | 模型推理和 UI 组件 |
 | 书架 | `src/core/bookshelf_manager.py` 与相应 API/store | 书、章节、标签与章节会话关系 | 页面持久化接口 | GPU 调度细节 |
-| MTU Worker 契约与适配器 | `src/core/mtu_worker_contract.py`、`src/core/extraction_backends/mtu_modal.py` | Saber/固定 MTU worker 之间的 detect/OCR JSON 转换 | PIL、Saber OCR 类型、注入的传输 client | Modal/MTU 对象、凭据或 `TextBlock` 泄漏到上层 |
-| Modal 适配器 | 尚未创建 | 作业提交、状态、artifact 传输和错误转换 | 阶段端口、远程客户端 | 项目真相、书架真相 |
+| MTU Worker 契约与适配器 | `src/core/mtu_worker_contract.py`、`src/core/extraction_backends/mtu_modal.py`、`src/core/stage_backends/mtu_*.py` | Saber/固定 MTU Worker 之间的 detect/OCR/color/inpaint JSON 转换 | PIL、Saber OCR 类型、注入的传输 client | Modal/MTU 对象、凭据或 `TextBlock` 泄漏到上层 |
+| Modal 适配器与 Worker | `src/core/modal_worker_client.py`、`workers/mtu/` | 已部署 Modal class lookup、Worker 生命周期和固定上游镜像配方 | 阶段端口、版本化 JSON 契约 | 项目真相、书架真相、浏览器凭据；也不负责部署或云端任务队列 |
 
 ## 目标依赖方向
 
@@ -50,6 +50,7 @@ Saber 的稳定结果类型后再交给上层。
 | `OcrEngine` | 对给定区域识别原文 | 与区域一一对应的 OCR 结果 |
 | `Translator` | 翻译一组有稳定 ID 的文本 | 与输入 ID 对应的译文和警告 |
 | `Inpainter` | 用区域/mask 生成干净背景 | clean image、可选修复 mask |
+| `ColorExtractor` | 从已知文本区域提取前景/背景颜色 | 与区域对应的 RGB 颜色 |
 | `Renderer` | 用干净背景和气泡状态生成成品 | final image、规范化后的气泡状态 |
 
 共享远程客户端不等于共享领域接口。例如 `ModalWorkerClient` 可以同时支持 detect、ocr、
@@ -74,20 +75,24 @@ inpaint，但调用它的三个适配器仍分别实现自己的端口。
 API Key、模型参数或界面配置。应用启动时可用纯数据注册完整 profile；注册动作不得加载模型或
 连接远程服务，实际可用性仍由对应的 stage adapter registry 验证。
 
-目前唯一已注册的 profile 是 `local_saber`，五个阶段都指向 `local`。检测和 OCR API 已读取
-`pipeline_profile`，并允许各自临时以 `detector_backend` 或 `ocr_backend` 覆盖；旧
-`extraction_backend` 仍兼容，但两者冲突会明确报错。profile 或后端未注册时必须失败，绝不能
-悄悄回退成本地模型。
+内置的默认 profile 是 `local_saber`，五个核心阶段都指向 `local`，可选 color 也默认走 local。
+当服务器通过 `SABER_REMOTE_CONFIG` 显式装配时，`remote_bootstrap.py` 才注册
+`modal_mtu_deepseek`：detect/OCR/color/inpaint 为 `modal_mtu`，translate 为 `deepseek`，render
+仍为 `local`。注册不会连接云端；profile 出现在列表中也不是健康检查或真实 GPU 验证。检测和 OCR
+允许 `detector_backend` 或 `ocr_backend` 临时覆盖，color/translate/inpaint/render 分别允许
+`color_backend`、`translator_backend`、`inpainter_backend`、`renderer_backend` 覆盖；旧
+`extraction_backend` 仍兼容，但冲突必须明确报错。profile 或后端未注册时必须失败，绝不能悄悄
+回退成本地模型。
 
-检测/OCR 使用既有的专用 extraction registry；翻译、修复和渲染使用独立的 `stage_backends`
-registry。现在所有五个主步骤都会解析 profile，并且都只有 `local` 内置实现。新增
-`modal_mtu`、`deepseek` 等 profile 前，必须先实现对应阶段端口、适配器和契约测试；不能只把
-名称写进配置表来假装已经可用。
+检测/OCR 使用既有的专用 extraction registry；color、翻译、修复和渲染使用独立的
+`stage_backends` registry。远程实现已有离线端到端 fixture，但尚不等同于上游权重、GPU、冷启动和
+云镜像的实测结果；新增其他 profile 仍必须先实现对应阶段端口、适配器和契约测试，不能只把名称
+写进配置表来假装已经可用。
 
 `automaticPipelineProfile` 是当前浏览器设置中的 profile 名；`createPipelineRuntime` 在任务启动时
 将它规范化并冻结为 `pipelineProfile`，随后原子步骤都只传这个 runtime 值。它同时写入页面元数据
-作为本次生成的 provenance。当前没有 profile 选择 UI，因为唯一已注册值仍是 `local_saber`；新增
-已验证的 profile 后才能暴露选择项。
+作为本次生成的 provenance。设置页从服务器读取已注册 profile；显示远程 profile 仅表示服务器
+配置存在，不能替代部署/质量验证。
 
 ## 插件与后端的区别
 

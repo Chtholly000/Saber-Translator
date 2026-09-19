@@ -196,6 +196,19 @@ export async function executeTranslate(input: TranslateInput): Promise<Translate
         // ==================== 整页批量翻译模式 ====================
         console.log(`[翻译] 使用整页批量翻译模式，共 ${originalTexts.length} 个气泡`)
 
+        // A configured remote profile owns its provider, model and credentials
+        // on the server. Do not send unrelated browser-local credentials or a
+        // custom endpoint through the control plane.
+        const localProviderOptions = pipelineProfile === 'local_saber'
+            ? {
+                model_provider: settings.translation.provider,
+                model_name: settings.translation.modelName,
+                api_key: settings.translation.apiKey,
+                custom_base_url: settings.translation.customBaseUrl,
+                openai_options: serializeOpenAICompatibleOptionsForApi(settings.translation.openaiOptions),
+            }
+            : {}
+
         const response: ParallelTranslateResponse = await parallelTranslate({
             original_texts: originalTexts,
             pipeline_profile: pipelineProfile,
@@ -203,15 +216,11 @@ export async function executeTranslate(input: TranslateInput): Promise<Translate
             translation_scope: 'image',
             target_language: settings.targetLanguage,
             source_language: settings.sourceLanguage,
-            model_provider: settings.translation.provider,
-            model_name: settings.translation.modelName,
-            api_key: settings.translation.apiKey,
-            custom_base_url: settings.translation.customBaseUrl,
             prompt_content: settings.translatePrompt,
             textbox_prompt_content: settings.textboxPrompt,
             use_textbox_prompt: settings.useTextboxPrompt,
             ...constraintPayload,
-            openai_options: serializeOpenAICompatibleOptionsForApi(settings.translation.openaiOptions)
+            ...localProviderOptions,
         })
 
         if (!response.success) {

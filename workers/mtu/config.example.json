@@ -1,0 +1,9 @@
+{
+  "worker": {"app_name": "saber-mtu-f0307a0", "class_name": "MtuWorker"},
+  "models": {
+    "detect": {"detector": "default", "detection_size": 1536},
+    "ocr": {"ocr": "48px"},
+    "inpaint": {"inpainter": "lama_mpe", "inpainting_size": 1024}
+  },
+  "translation": {"model": "deepseek-chat", "api_key_env": "DEEPSEEK_API_KEY"}
+}

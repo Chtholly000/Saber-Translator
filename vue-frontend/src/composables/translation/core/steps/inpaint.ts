@@ -27,7 +27,7 @@ export async function executeInpaint(input: InpaintInput): Promise<InpaintOutput
     const { image, bubbleCoords, bubblePolygons, textMask, userMask, translationMode = 'standard', settingsSnapshot } = input
     const pipelineProfile = input.pipelineProfile || 'local_saber'
 
-    if (bubbleCoords.length === 0) {
+    if (bubbleCoords.length === 0 && !userMask) {
         return { cleanImage: extractBase64(image.originalDataURL) }
     }
 

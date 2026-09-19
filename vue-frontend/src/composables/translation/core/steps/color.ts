@@ -11,6 +11,7 @@ export interface ColorInput {
     imageIndex: number
     image: AppImageData
     translationMode?: string
+    pipelineProfile?: string
     bubbleCoords: BubbleCoords[]
     bubbleStates?: BubbleState[] | null
     textlinesPerBubble?: any[]
@@ -46,6 +47,7 @@ export async function executeColor(input: ColorInput): Promise<ColorOutput> {
     })
 
     const response: ParallelColorResponse = await parallelColor({
+        pipeline_profile: input.pipelineProfile || 'local_saber',
         image: base64,
         bubble_coords: bubbleCoords,
         translation_mode: translationMode,

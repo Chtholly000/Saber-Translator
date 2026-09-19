@@ -37,24 +37,27 @@ Flask 应用
 - `src/core/config_models.py`：Python `BubbleState` 序列化模型。
 - `src/core/page_storage.py`：页面图片、页面元数据和会话元数据的持久化。
 
-当前 `src/core/pipeline_profiles.py` 已建立自动流水线的组合点。唯一已注册的完整 profile 是
-`local_saber`，其 detect / OCR / translate / inpaint / render 都选 `local`，所以默认行为没有
-改变。五个主 API 都会通过 profile 解析后端；detect/OCR 使用现有 `extraction_backends/` 接缝，
-translate/inpaint/render 使用各自的 `stage_backends/` registry。detect/OCR 保留旧的
+当前 `src/core/pipeline_profiles.py` 已建立自动流水线的组合点。默认内置的完整 profile 是
+`local_saber`，其 detect / OCR / translate / inpaint / render 都选 `local`。
+显式提供 `SABER_REMOTE_CONFIG` 后还会注册 `modal_mtu_deepseek`：检测/OCR/取色/修复使用
+MTU Worker，翻译使用 DeepSeek 官方 API，渲染使用 Saber CPU。配置可用不等于云端已实测。
+五个主 API 以及可选 color API 都会通过 profile 解析后端；detect/OCR 使用 `extraction_backends/` 接缝，
+color/translate/inpaint/render 使用各自的 `stage_backends/` registry。detect/OCR 保留旧的
 `extraction_backend` 参数作为过渡。Flask 仍同步等待结果；这不代表 Modal、MTU 或远程任务已经
-实现。
+部署验证。具体能力与验证边界见 `workers/mtu/README.md`。
 
 Vue 是当前浏览器客户端，不是自动流水线的所有者。它可以被另一客户端（例如批处理客户端）
 替换，只要后者遵守任务/API 和持久化契约；MTU 的 Qt 界面也不能直接当作 Saber 客户端嵌入。
 
 自动任务在 `createPipelineRuntime` 启动时从 `automaticPipelineProfile` 取得并冻结 profile；五个主
-步骤都将同一 `pipeline_profile` 发给 API，页面元数据记录 `pipelineProfile`。当前唯一已注册的
-profile 是 `local_saber`，因此这不改变默认计算位置。旧的逐气泡翻译走独立 API；它明确拒绝任何
-非本地 profile，避免将来绕过适配器边界。
+步骤和取色将同一 `pipeline_profile` 发给 API，页面元数据记录 `pipelineProfile`。默认仍为
+`local_saber`，浏览器设置可以选择服务器显式配置的 profile。旧的逐气泡翻译、高质量翻译和
+校对尚未迁移，遇到非本地 profile 会明确拒绝。
 
-检测/OCR 已有一个无 Modal SDK 依赖的 MTU Worker v1 契约和注入式 adapter。它把 PIL 图片、区域、
-非敏感选项序列化为 JSON，接收规范化区域、PNG mask 和 OCR 结果；它不启动 worker，也不下载 MTU
-或模型。实际 Modal 部署只应实现这个受测 client，而不是向路由泄漏 Modal 对象。
+MTU Worker v2 契约覆盖检测/OCR/取色/修复。`workers/mtu/runtime.py` 已实现对固定 MTU 窄模块的
+调用和字段转换，`modal_worker_client.py` 提供惰性的认证 SDK client；独立部署定义已通过 SDK
+导入验证，尚未构建云镜像或执行真实 GPU 推理。原子路由的本地模型导入已延迟，但完整 app.py
+仍包含旧的重型依赖，不能宣称 Oracle 轻量部署包已经完成。
 
 插件系统只在步骤执行前后改写 payload/result。插件不能安全地承担模型生命周期、远程任务、
 幂等重试或大型图片传输，因此插件与后端适配器必须保持不同概念。
@@ -133,14 +136,14 @@ detect → ocr → translate → inpaint → render
 
 模块化分成三个互不混淆的维度：
 
-1. 阶段端口：`Detector`、`OcrEngine`、`Translator`、`Inpainter`、`Renderer`。
+1. 阶段端口：`Detector`、`OcrEngine`、可选 `ColorExtractor`、`Translator`、`Inpainter`、`Renderer`。
 2. 执行适配器：`local`、`modal`、`http_api`。
 3. 展示/控制客户端：Vue 浏览器、批处理 CLI、或其他遵守 API 的客户端。
 
 例如 `MTU OCR on Modal` 是“OCR 阶段端口 + Modal 执行适配器 + MTU 实现”的组合。
 更换 OCR 模型只改变配置和适配器注册，不改变路由、书架、编辑器或页面格式。
 
-完整 profile 把五个阶段的已注册适配器组合成一次**自动运行**。它不是视觉工作流编辑器，
+完整 profile 把五个核心阶段和可选 color 的已注册适配器组合成一次**自动运行**。它不是视觉工作流编辑器，
 也不是另一套编排引擎：步骤图仍由 pipeline controller 拥有。这样可以把 GPU、API 模型和
 渲染器整体换掉，同时保留“打开页面后自动处理并出图”的行为。
 
@@ -160,9 +163,15 @@ detect → ocr → translate → inpaint → render
 
 ## 尚未实施
 
-- Modal Worker 与远程任务队列。
-- 实际 MTU Worker 镜像、Modal client 和端到端字段转换 fixture（v1 契约/注入式 adapter 已有）。
-- 非本地 stage adapter、非本地完整 profile 与它们的跨进程契约测试。
+- Modal 镜像实际构建、真实权重/GPU 品质验证、持久模型缓存。
+- 异步远程任务队列、超时/取消传播、幂等与页面 revision 写回。
+- 完整 Saber 控制面的 GPU 依赖剥离与 Oracle 轻量运行包。
 - DeepSeek 专用配置界面；现有 OpenAI-compatible 能力是否足够仍需验证。
 - 版本化的跨语言项目 schema、字段 provenance、页面 revision 和人工锁管理 UI。
 - Oracle 部署、备份和恢复方案。
+
+## CURRENT：独立抽字与嵌字客户端
+
+`tools/extract_text.py` 只调用 detect/OCR 端口并导出气泡 JSON；`tools/typeset.py` 直接消费
+图片与 BubbleState JSON，只调用 render 端口。后者已用真实 Saber CPU 渲染器验证空白图出字，
+不依赖前面四步。AI 可以生成文字/坐标 JSON，浏览器编辑器不是调用这些能力的必需条件。

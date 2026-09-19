@@ -18,4 +18,12 @@ describe('pipeline profile runtime snapshot', () => {
     settings.automaticPipelineProfile = 'local_saber'
     expect(runtime.pipelineProfile).toBe('modal_mtu')
   })
+
+  it('rejects legacy HQ and proofreading flows before remote stages start', () => {
+    const settings = createDefaultSettings()
+    settings.automaticPipelineProfile = 'modal_mtu_deepseek'
+    for (const mode of ['hq', 'proofread'] as const) {
+      expect(() => createPipelineRuntime(mode, { settingsSnapshot: settings })).toThrow('尚未接入')
+    }
+  })
 })

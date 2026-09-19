@@ -118,6 +118,9 @@ export async function parallelOcr(params: ParallelOcrParams): Promise<ParallelOc
 // ==================== 颜色提取 API ====================
 
 export interface ParallelColorParams {
+  pipeline_profile?: string
+  /** Stage-specific execution adapter. Takes precedence over the profile. */
+  color_backend?: string
   image: string
   bubble_coords: number[][]
   translation_mode?: string
@@ -127,6 +130,8 @@ export interface ParallelColorParams {
 
 export interface ParallelColorResponse {
   success: boolean
+  pipeline_profile?: string
+  execution_backend?: string
   colors?: Array<{
     textColor: string
     bgColor: string
@@ -138,6 +143,15 @@ export interface ParallelColorResponse {
 
 export async function parallelColor(params: ParallelColorParams): Promise<ParallelColorResponse> {
   return apiClient.post<ParallelColorResponse>('/api/parallel/color', params)
+}
+
+export interface PipelineProfileInfo {
+  name: string
+  stage_backends: Record<string, string>
+}
+
+export function getPipelineProfiles() {
+  return apiClient.get<{ success: boolean; profiles: PipelineProfileInfo[] }>('/api/parallel/profiles')
 }
 
 // ==================== 翻译 API ====================
@@ -152,7 +166,8 @@ export interface ParallelTranslateParams {
   translation_scope?: string
   target_language: string
   source_language?: string
-  model_provider: string
+  /** Required for local_saber; server-owned profiles choose their own provider. */
+  model_provider?: string
   model_name?: string
   api_key?: string
   custom_base_url?: string

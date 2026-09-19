@@ -56,6 +56,35 @@ describe('executeDetection saber yolo refine flags', () => {
     parallelDetectMock.mockReset()
   })
 
+  it('uses the remote detector mask without paying for a second GPU detection', async () => {
+    parallelDetectMock.mockResolvedValueOnce({ success: true, bubble_coords: [], raw_mask: 'remote-mask' })
+    const { executeDetection } = await import('@/composables/translation/core/steps/detection')
+    const result = await executeDetection({ imageIndex: 0,
+      image: { originalDataURL: 'data:image/png;base64,ZmFrZQ==' } as any,
+      pipelineProfile: 'modal_mtu_deepseek', settingsSnapshot: detectionSettingsSnapshot })
+    expect(parallelDetectMock).toHaveBeenCalledTimes(1)
+    expect(result.textMask).toBe('remote-mask')
+  })
+
+  it('keeps a remote detector polygon on the BubbleState used by later inpaint', async () => {
+    const polygon = [[1, 1], [12, 2], [11, 14], [0, 13]]
+    parallelDetectMock.mockResolvedValueOnce({
+      success: true,
+      bubble_coords: [[0, 1, 12, 14]],
+      bubble_angles: [7],
+      bubble_polygons: [polygon],
+      auto_directions: ['h'],
+      textlines_per_bubble: [[]],
+    })
+    const { executeDetection } = await import('@/composables/translation/core/steps/detection')
+    const result = await executeDetection({ imageIndex: 0,
+      image: { originalDataURL: 'data:image/png;base64,ZmFrZQ==' } as any,
+      pipelineProfile: 'modal_mtu_deepseek', settingsSnapshot: detectionSettingsSnapshot })
+
+    expect(result.bubbleStates[0]?.polygon).toEqual(polygon)
+    expect(result.bubblePolygons).toEqual([polygon])
+  })
+
   it('passes the current toggle for main detection and disables refinement for mask detection', async () => {
     parallelDetectMock
       .mockResolvedValueOnce({

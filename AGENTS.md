@@ -25,9 +25,11 @@ Do not treat a `TARGET` or `PROPOSED` section as implemented behavior.  Verify
   this repository.  Consume a pinned revision through an adapter or worker.
 - Oracle is the future control/storage node, not a GPU host.  Oracle deployment
   and secrets belong to a separate operations repository, never this repo.
-- Modal is a future execution target for GPU-heavy stages.  DeepSeek or another
-  OpenAI-compatible service is a future translation target.  Neither is the
-  canonical owner of project state.
+- `modal_mtu_deepseek` is an opt-in remote composition: the pinned MTU Worker
+  recipe handles GPU stages, DeepSeek handles text translation, and Saber keeps
+  rendering/project state. It is not deployed or live-GPU-verified merely
+  because the profile is configured. Neither provider is the canonical owner
+  of project state.
 
 ## Non-negotiable design rules
 
@@ -41,9 +43,10 @@ Do not treat a `TARGET` or `PROPOSED` section as implemented behavior.  Verify
    manually edited text, geometry, or style.
 4. Routes and Vue step functions orchestrate contracts; they must not import a
    vendor model implementation directly.
-5. Stage ports describe capabilities (`detect`, `ocr`, `translate`, `inpaint`,
-   `render`).  Execution adapters describe where/how they run (`local`, `modal`,
-   `api`).  Do not combine those two decisions in UI components.
+5. Stage ports describe capabilities (`detect`, `ocr`, optional `color`,
+   `translate`, `inpaint`, `render`). Execution adapters describe where/how
+   they run (`local`, `modal`, `api`). Do not combine those two decisions in UI
+   components.
 6. Plugin hooks are middleware around a stage.  They are not a substitute for
    a backend adapter or a durable job protocol.
 7. Keep the existing local behavior as the default until a remote adapter has

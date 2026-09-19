@@ -1,0 +1,2 @@
+# Control-process client only. MTU/CUDA dependencies belong to the worker image.
+modal==1.5.5

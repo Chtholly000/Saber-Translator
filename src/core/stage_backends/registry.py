@@ -11,7 +11,7 @@ from .base import (
 
 
 StageBackendFactory = Callable[[StageCallable], StageBackend]
-STAGE_BACKEND_STAGES: Tuple[str, ...] = ("translate", "inpaint", "render")
+STAGE_BACKEND_STAGES: Tuple[str, ...] = ("translate", "inpaint", "render", "color")
 _STAGE_BACKEND_FACTORIES: Dict[str, Dict[str, StageBackendFactory]] = {
     stage: {} for stage in STAGE_BACKEND_STAGES
 }

@@ -54,6 +54,26 @@ export async function executeOcr(input: OcrInput): Promise<OcrOutput> {
         return textlinesPerBubble?.[index] || []
     })
 
+    const localOcrOptions = pipelineProfile === 'local_saber'
+        ? {
+            ocr_engine: settings.ocrEngine,
+            baidu_api_key: settings.baiduOcr?.apiKey,
+            baidu_secret_key: settings.baiduOcr?.secretKey,
+            baidu_version: settings.baiduOcr?.version,
+            baidu_ocr_language: settings.baiduOcr?.sourceLanguage,
+            ai_vision_provider: normalizeProviderId(settings.aiVisionOcr?.provider),
+            ai_vision_api_key: settings.aiVisionOcr?.apiKey,
+            ai_vision_model_name: settings.aiVisionOcr?.modelName,
+            ai_vision_ocr_prompt: settings.aiVisionOcr?.prompt,
+            ai_vision_prompt_mode: settings.aiVisionOcr?.promptMode,
+            custom_ai_vision_base_url: settings.aiVisionOcr?.customBaseUrl,
+            openai_options: serializeOpenAICompatibleOptionsForApi(settings.aiVisionOcr.openaiOptions),
+            enable_hybrid_ocr: settings.hybridOcr?.enabled,
+            secondary_ocr_engine: settings.hybridOcr?.secondaryEngine,
+            hybrid_ocr_threshold: settings.hybridOcr?.confidenceThreshold,
+        }
+        : {}
+
     const response: ParallelOcrResponse = await parallelOcr({
         image: base64,
         pipeline_profile: pipelineProfile,
@@ -61,22 +81,8 @@ export async function executeOcr(input: OcrInput): Promise<OcrOutput> {
         translation_mode: translationMode,
         translation_scope: 'image',
         source_language: ocrSourceLanguage,
-        ocr_engine: settings.ocrEngine,
-        baidu_api_key: settings.baiduOcr?.apiKey,
-        baidu_secret_key: settings.baiduOcr?.secretKey,
-        baidu_version: settings.baiduOcr?.version,
-        baidu_ocr_language: settings.baiduOcr?.sourceLanguage,
-        ai_vision_provider: normalizeProviderId(settings.aiVisionOcr?.provider),
-        ai_vision_api_key: settings.aiVisionOcr?.apiKey,
-        ai_vision_model_name: settings.aiVisionOcr?.modelName,
-        ai_vision_ocr_prompt: settings.aiVisionOcr?.prompt,
-        ai_vision_prompt_mode: settings.aiVisionOcr?.promptMode,
-        custom_ai_vision_base_url: settings.aiVisionOcr?.customBaseUrl,
-        openai_options: serializeOpenAICompatibleOptionsForApi(settings.aiVisionOcr.openaiOptions),
-        enable_hybrid_ocr: settings.hybridOcr?.enabled,
-        secondary_ocr_engine: settings.hybridOcr?.secondaryEngine,
-        hybrid_ocr_threshold: settings.hybridOcr?.confidenceThreshold,
-        textlines_per_bubble: preferredTextlines
+        textlines_per_bubble: preferredTextlines,
+        ...localOcrOptions,
     })
 
     if (!response.success) {

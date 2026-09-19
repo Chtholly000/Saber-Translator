@@ -126,6 +126,7 @@ export async function executeAtomicStep(
         imageIndex: context.imageIndex,
         image: context.sourceImage,
         translationMode: runtime.mode,
+        pipelineProfile: runtime.pipelineProfile,
         bubbleCoords: context.bubbleCoords,
         bubbleStates: context.bubbleStates,
         textlinesPerBubble: context.textlinesPerBubble,

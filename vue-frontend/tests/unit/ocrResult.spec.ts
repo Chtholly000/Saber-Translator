@@ -188,6 +188,30 @@ describe('OCR result integration', () => {
     )
   })
 
+  it('does not send browser-local OCR credentials or endpoint settings to a remote profile', async () => {
+    const settingsStore = useSettingsStore()
+    await executeOcr({
+      imageIndex: 0,
+      image: { originalDataURL: 'data:image/png;base64,abc' } as any,
+      pipelineProfile: 'modal_mtu_deepseek',
+      bubbleCoords: [[0, 0, 10, 10]],
+      textlinesPerBubble: [],
+      settingsSnapshot: settingsStore.settings as any,
+    })
+
+    const remotePayload = parallelOcrMock.mock.calls[0]?.[0]
+    expect(remotePayload).toMatchObject({
+      pipeline_profile: 'modal_mtu_deepseek',
+      source_language: 'japanese',
+    })
+    expect(remotePayload).not.toHaveProperty('ocr_engine')
+    expect(remotePayload).not.toHaveProperty('baidu_api_key')
+    expect(remotePayload).not.toHaveProperty('baidu_secret_key')
+    expect(remotePayload).not.toHaveProperty('ai_vision_api_key')
+    expect(remotePayload).not.toHaveProperty('custom_ai_vision_base_url')
+    expect(remotePayload).not.toHaveProperty('openai_options')
+  })
+
   it('imageStore should preserve ocrResults when loading legacy-compatible images', () => {
     const store = useImageStore()
     store.setImages([

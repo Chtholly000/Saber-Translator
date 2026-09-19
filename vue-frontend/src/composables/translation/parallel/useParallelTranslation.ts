@@ -61,6 +61,9 @@ export function useParallelTranslation() {
    */
   function determineMode(): ParallelTranslationMode {
     const settings = settingsStore.settings
+    if (settings.automaticPipelineProfile && settings.automaticPipelineProfile !== 'local_saber') {
+      return 'standard'
+    }
 
     // 检查是否启用AI校对
     if (settings.proofreading?.enabled && settings.proofreading.rounds.length > 0) {

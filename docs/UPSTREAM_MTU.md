@@ -1,6 +1,6 @@
 # MTU 上游集成说明
 
-状态：上游审计为 `CURRENT`，适配方式为 `TARGET`。
+状态：上游审计和 Worker 适配代码为 `CURRENT`；真实云镜像/GPU 输出验证仍为 `TARGET`。
 
 ## 固定版本
 
@@ -56,7 +56,7 @@ MTU 的 `detection/__init__.py`、`ocr/__init__.py`、`inpainting/__init__.py` �
 ```text
 Saber stage request
   → MTU adapter
-  → pinned MTU detector/OCR/inpainter/renderer
+  → pinned MTU detector/OCR/textline merger/inpainter
   → normalize coordinates, masks, text and styles
   → Saber stage response
 ```
@@ -66,22 +66,25 @@ Saber stage request
 
 可以先用完整 MTU API 做一次性对照测试，但生产适配器应使用我们需要的最小阶段入口。
 
-Saber 的自动 profile 仅在各阶段 adapter 已注册并通过契约测试后才引用它们。例如未来的
-`modal_mtu` 可以组合 MTU 的 detect/OCR/inpaint/render adapter；翻译阶段可以独立为 DeepSeek
-adapter。profile 不能直接指向 MTU 完整 controller，也不能把 MTU Qt editor 当作 profile 的一项。
+Saber 的自动 profile 仅在各阶段 adapter 已注册并通过契约测试后才引用它们。当前可选的
+`modal_mtu_deepseek` 组合 MTU 的 detect/OCR/color/inpaint adapter 和独立 DeepSeek 翻译 adapter，
+并保留 Saber renderer。profile 不能直接指向 MTU 完整 controller，也不能把 MTU Qt editor 当作
+profile 的一项。
 
-### CURRENT：Worker v1 接缝
+### CURRENT：Worker v2 接缝
 
-Saber 现有 `src/core/mtu_worker_contract.py` 和
-`src/core/extraction_backends/mtu_modal.py` 定义了 detect/OCR 的受测接缝。它们不导入 Modal、
-不安装 MTU，也不会自行注册 `modal_mtu` profile。部署代码将来只需注入一个具有
-`execute(payload) -> payload` 的 client，并在受控 Worker 镜像内以本文件固定 revision 调用 MTU
-窄模块。
+`src/core/mtu_worker_contract.py`、`src/core/extraction_backends/mtu_modal.py` 和
+`src/core/stage_backends/mtu_*.py` 定义 detect/OCR/color/inpaint 的受测接缝。
+`workers/mtu/runtime.py` 只调用该 revision 的 `detection.dispatch`、`ocr.dispatch`、
+`textline_merge.dispatch` 和 `inpainting.dispatch`；`workers/mtu/modal_app.py` 是固定 revision 与
+CUDA 依赖组的部署配方。控制进程的 `modal_worker_client.py` 只在真正执行时才导入 Modal SDK，
+`remote_bootstrap.py` 只在显式非秘密配置存在时注册 profile。
 
-Worker 请求/响应使用 `saber-mtu-worker/v1`；严禁把 API Key、签名 artifact URL、HTTP response、
-Modal object、Pydantic Config 或 `TextBlock` 放进 payload。OCR 必须按 `region-N` ID 对齐并完整返回；
-detect 的可选 mask 必须是与输入同尺寸的 base64 PNG。真实 Worker 接入前先用契约 fixture 覆盖横排、
-竖排、旋转框、空页和 mask 尺寸不符。
+Worker 请求/响应使用 `saber-mtu-worker/v2`；严禁把 API Key、签名 artifact URL、HTTP response、
+Modal object、Pydantic Config 或 `TextBlock` 放进 payload。OCR/color 必须按 `region-N` ID 对齐并完整
+返回；detect 的可选 mask 和 inpaint 返回图必须与输入同尺寸且为 base64 PNG。离线 fixture 覆盖横排、
+竖排、旋转框、空页、mask 尺寸不符、顺序反转与凭据隔离；真实 Worker 接入仍须执行相同类型的 GPU
+fixture，不能把离线结果当成模型质量证明。
 
 ## 禁止做法
 

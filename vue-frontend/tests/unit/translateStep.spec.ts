@@ -28,6 +28,9 @@ describe('executeTranslate', () => {
   it('forwards glossary and non-translate settings in batch mode and returns warnings', async () => {
     const settingsStore = useSettingsStore()
     settingsStore.settings.translation.translationMode = 'batch'
+    settingsStore.settings.translation.apiKey = 'browser-only-key'
+    settingsStore.settings.translation.modelName = 'browser-only-model'
+    settingsStore.settings.translation.customBaseUrl = 'https://browser.example.com/v1'
     const constraints = createEmptyBookTranslationConstraints()
     constraints.glossary.enabled = true
     constraints.glossary.entries = [
@@ -61,6 +64,12 @@ describe('executeTranslate', () => {
         non_translate_settings: constraints.non_translate,
       }),
     )
+    const remotePayload = parallelTranslateMock.mock.calls[0]?.[0]
+    expect(remotePayload).not.toHaveProperty('api_key')
+    expect(remotePayload).not.toHaveProperty('model_name')
+    expect(remotePayload).not.toHaveProperty('model_provider')
+    expect(remotePayload).not.toHaveProperty('custom_base_url')
+    expect(remotePayload).not.toHaveProperty('openai_options')
     expect(result.warnings).toEqual([
       { imageIndex: 0, bubbleIndex: 0, source: 'Alice', expectedTarget: '爱丽丝', actualTranslation: '爱丽丝 <keep>' },
     ])

@@ -17,35 +17,22 @@ from PIL import Image
 from src.core.ocr_types import OcrResult
 
 
-MTU_WORKER_CONTRACT_VERSION = "saber-mtu-worker/v1"
+MTU_WORKER_CONTRACT_VERSION = "saber-mtu-worker/v2"
+
+MTU_MODEL_OPTION_KEYS = {
+    "detect": {"detector", "detection_size", "text_threshold", "box_threshold", "unclip_ratio", "min_box_area_ratio"},
+    "ocr": {"ocr", "source_language"},
+    "color": set(),
+    "inpaint": {"inpainter", "inpainting_size"},
+}
 
 
 class MtuWorkerContractError(ValueError):
     """Raised for an invalid request or incompatible MTU worker response."""
 
 
-_DETECT_OPTION_KEYS = {
-    "detector_type",
-    "expand_ratio",
-    "expand_top",
-    "expand_bottom",
-    "expand_left",
-    "expand_right",
-    "enable_aux_yolo_detection",
-    "aux_yolo_conf_threshold",
-    "aux_yolo_overlap_threshold",
-    "enable_saber_yolo_refine",
-    "saber_yolo_refine_overlap_threshold",
-    "min_text_block_area_percent",
-}
-_OCR_OPTION_KEYS = {
-    "source_language",
-    "ocr_engine",
-    "textlines_per_bubble",
-    "enable_hybrid_ocr",
-    "secondary_ocr_engine",
-    "hybrid_ocr_threshold",
-}
+_DETECT_OPTION_KEYS = MTU_MODEL_OPTION_KEYS["detect"]
+_OCR_OPTION_KEYS = MTU_MODEL_OPTION_KEYS["ocr"]
 _SENSITIVE_OPTION_KEYS = {
     "baidu_api_key",
     "baidu_secret_key",
@@ -53,6 +40,8 @@ _SENSITIVE_OPTION_KEYS = {
     "custom_ai_vision_base_url",
     "ai_vision_openai_options",
 }
+_MAX_WORKER_IMAGE_DATA_CHARS = 48 * 1024 * 1024
+_MAX_WORKER_IMAGE_PIXELS = 40_000_000
 
 
 def _require_mapping(value: Any, name: str) -> Mapping[str, Any]:
@@ -94,19 +83,67 @@ def _coords(value: Any, field: str) -> List[int]:
     return coords
 
 
+def _polygon(value: Any, field: str, *, image_width: int, image_height: int,
+             allow_empty: bool = True) -> List[List[float]]:
+    """Validate a Worker quadrilateral without leaking a vendor geometry type."""
+    if value is None or value == []:
+        if allow_empty:
+            return []
+        raise MtuWorkerContractError(f"{field} 必须是四个顶点")
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)) or len(value) != 4:
+        raise MtuWorkerContractError(f"{field} 必须是四个顶点")
+    points: List[List[float]] = []
+    for index, point in enumerate(value):
+        if not isinstance(point, Sequence) or isinstance(point, (str, bytes)) or len(point) != 2:
+            raise MtuWorkerContractError(f"{field}[{index}] 必须是二维坐标")
+        x = _number(point[0], f"{field}[{index}][0]")
+        y = _number(point[1], f"{field}[{index}][1]")
+        if not 0 <= x <= image_width or not 0 <= y <= image_height:
+            raise MtuWorkerContractError(f"{field}[{index}] 超出图片范围")
+        points.append([x, y])
+    if max(point[0] for point in points) <= min(point[0] for point in points) or \
+            max(point[1] for point in points) <= min(point[1] for point in points):
+        raise MtuWorkerContractError(f"{field} 区域不能为空")
+    return points
+
+
 def _image_payload(image: Image.Image) -> Dict[str, Any]:
     if not isinstance(image, Image.Image):
         raise MtuWorkerContractError("MTU Worker 只接受 PIL 图片对象")
-    normalized = image.convert("RGB")
+    return encode_worker_png(image.convert("RGB"))
+
+
+def encode_worker_png(image: Image.Image) -> Dict[str, Any]:
+    """Encode images or grayscale masks without losing their pixel mode."""
+    if not isinstance(image, Image.Image) or image.width <= 0 or image.height <= 0:
+        raise MtuWorkerContractError("Worker 图片对象无效")
+    if image.width * image.height > _MAX_WORKER_IMAGE_PIXELS:
+        raise MtuWorkerContractError("Worker 图片像素超过 40,000,000")
     buffer = io.BytesIO()
-    normalized.save(buffer, format="PNG")
-    return {
-        "media_type": "image/png",
-        "encoding": "base64",
-        "data": base64.b64encode(buffer.getvalue()).decode("ascii"),
-        "width": normalized.width,
-        "height": normalized.height,
-    }
+    image.save(buffer, format="PNG")
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    if len(encoded) > _MAX_WORKER_IMAGE_DATA_CHARS:
+        raise MtuWorkerContractError("Worker PNG 数据超过 48 MiB")
+    return {"media_type": "image/png", "encoding": "base64", "data": encoded,
+            "width": image.width, "height": image.height}
+
+
+def decode_worker_png(payload: Any, *, mode: str = "RGB") -> Image.Image:
+    value = _require_mapping(payload, "image")
+    if value.get("media_type") != "image/png" or value.get("encoding") != "base64":
+        raise MtuWorkerContractError("Worker 图片必须为 base64 PNG")
+    data = value.get("data")
+    if not isinstance(data, str) or len(data) > _MAX_WORKER_IMAGE_DATA_CHARS:
+        raise MtuWorkerContractError("Worker 图片数据无效或超过 48 MiB")
+    try:
+        with Image.open(io.BytesIO(base64.b64decode(data, validate=True))) as image:
+            if image.format != "PNG" or image.width * image.height > _MAX_WORKER_IMAGE_PIXELS:
+                raise ValueError("invalid image")
+            if value.get("width", image.width) != image.width or value.get("height", image.height) != image.height:
+                raise ValueError("size mismatch")
+            return image.convert(mode)
+    except Exception as error:
+        raise MtuWorkerContractError("Worker PNG 无效或声明尺寸不符") from error
 
 
 def _safe_options(options: Mapping[str, Any], allowed_keys: Iterable[str]) -> Dict[str, Any]:
@@ -169,11 +206,7 @@ def _decode_mask(payload: Any, expected_width: int, expected_height: int) -> np.
     data = mask.get("data")
     if not isinstance(data, str) or not data:
         raise MtuWorkerContractError("MTU Worker text_mask 缺少数据")
-    try:
-        decoded = base64.b64decode(data, validate=True)
-        image = Image.open(io.BytesIO(decoded)).convert("L")
-    except Exception as error:
-        raise MtuWorkerContractError("MTU Worker text_mask 不是有效 PNG") from error
+    image = decode_worker_png(mask, mode="L")
     array = np.array(image)
     if array.shape != (expected_height, expected_width):
         raise MtuWorkerContractError(
@@ -192,7 +225,7 @@ def normalize_mtu_detect_response(
 
     response = _require_mapping(payload, "detect 响应")
     _require_stage_response(response, "detect")
-    regions = response.get("regions", [])
+    regions = response.get("regions")
     if not isinstance(regions, list):
         raise MtuWorkerContractError("MTU Worker detect regions 必须是数组")
 
@@ -209,19 +242,37 @@ def normalize_mtu_detect_response(
         coords = _coords(region.get("coords"), f"detect regions[{index}].coords")
         if coords[0] < 0 or coords[1] < 0 or coords[2] > image_width or coords[3] > image_height:
             raise MtuWorkerContractError(f"detect regions[{index}].coords 超出图片范围")
-        polygon = region.get("polygon", [])
+        polygon = _polygon(
+            region.get("polygon"), f"detect regions[{index}].polygon",
+            image_width=image_width, image_height=image_height,
+        )
         textlines = region.get("textlines", [])
-        if not isinstance(polygon, list) or not isinstance(textlines, list):
-            raise MtuWorkerContractError(f"detect regions[{index}] 的 polygon/textlines 必须是数组")
+        if not isinstance(textlines, list):
+            raise MtuWorkerContractError(f"detect regions[{index}].textlines 必须是数组")
         angle = _number(region.get("angle", 0), f"detect regions[{index}].angle")
         direction = str(region.get("direction", "") or "").strip().lower()
         if direction not in {"h", "v"}:
             direction = "v" if (coords[3] - coords[1]) > (coords[2] - coords[0]) else "h"
+        normalized_textlines = []
+        for line_index, line_value in enumerate(textlines):
+            line = _require_mapping(line_value, f"detect regions[{index}].textlines[{line_index}]")
+            line_direction = str(line.get("direction", direction) or "").strip().lower()
+            if line_direction not in {"h", "v"}:
+                raise MtuWorkerContractError(
+                    f"detect regions[{index}].textlines[{line_index}].direction 无效"
+                )
+            normalized_textlines.append({
+                "polygon": _polygon(
+                    line.get("polygon"), f"detect regions[{index}].textlines[{line_index}].polygon",
+                    image_width=image_width, image_height=image_height, allow_empty=False,
+                ),
+                "direction": line_direction,
+            })
         result["coords"].append(coords)
         result["polygons"].append(polygon)
         result["angles"].append(angle)
         result["auto_directions"].append(direction)
-        result["textlines_per_bubble"].append(textlines)
+        result["textlines_per_bubble"].append(normalized_textlines)
 
     if response.get("text_mask") is not None:
         result["raw_mask"] = _decode_mask(response["text_mask"], image_width, image_height)
@@ -250,6 +301,12 @@ def normalize_mtu_ocr_response(
             raise MtuWorkerContractError(f"ocr results[{index}] 缺少稳定区域 ID")
         if region_id not in expected or region_id in by_region:
             raise MtuWorkerContractError(f"ocr results[{index}] 包含未知或重复区域 ID: {region_id}")
+        if not isinstance(item.get("text"), str):
+            raise MtuWorkerContractError(f"ocr results[{index}] 缺少文本字段")
+        if item.get("confidence") is not None:
+            confidence = _number(item["confidence"], "OCR confidence")
+            if not 0 <= confidence <= 1:
+                raise MtuWorkerContractError("OCR confidence 必须在 0–1 之间")
         by_region[region_id] = OcrResult.from_dict(dict(item))
 
     missing = [region_id for region_id in expected_region_ids if region_id not in by_region]

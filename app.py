@@ -172,6 +172,10 @@ app = Flask(__name__,
            static_url_path='') # 保持 static_url_path 为空，以便 URL 保持 /style.css 等形式
 CORS(app)
 
+# Explicit opt-in composition. Configuration errors stop startup; no local fallback.
+from src.core.remote_bootstrap import configure_remote_backends_from_env
+configure_remote_backends_from_env()
+
 # --- 初始化插件管理器 ---
 try:
     plugin_manager = get_plugin_manager(app=app)
