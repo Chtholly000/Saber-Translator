@@ -209,14 +209,18 @@ Saber-Translator 提供了一站式的漫画翻译与管理解决方案，集成
 
 ## 开发文档
 
-如果你要修改这个 fork，请从以下权威文档开始：
+上面的下载和桌面程序说明来自上游产品文档。修改这个 fork、从源码启动或判断远程能力是否
+真的可用时，以下文档才是权威；配置中出现远程 profile 不等于已经部署 Modal 或 Oracle。
 
 - [`AGENTS.md`](AGENTS.md)：编码 Agent 的阅读顺序、边界和验证要求
 - [`docs/README.md`](docs/README.md)：开发文档索引与状态规则
+- [`docs/DEVELOPMENT_SETUP.md`](docs/DEVELOPMENT_SETUP.md)：从零安装、无界面安全启动、联调和验证层次
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)：当前系统和目标部署架构
 - [`docs/MODULE_BOUNDARIES.md`](docs/MODULE_BOUNDARIES.md)：模块所有权与依赖方向
 - [`docs/PIPELINE_CONTRACTS.md`](docs/PIPELINE_CONTRACTS.md)：页面、气泡和原子步骤契约
+- [`docs/STAGE_PLUGINS.md`](docs/STAGE_PLUGINS.md)：独立替换 OCR 等六个处理阶段
 - [`docs/UPSTREAM_MTU.md`](docs/UPSTREAM_MTU.md)：MTU 固定版本、适配边界与升级流程
+- [`docs/DEVELOPMENT_HISTORY.md`](docs/DEVELOPMENT_HISTORY.md)：本 fork 的目标、里程碑和设计来由
 
 ### 书架系统
 

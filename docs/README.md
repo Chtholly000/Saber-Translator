@@ -20,6 +20,7 @@
 
 | 文档 | 负责回答 |
 | --- | --- |
+| [DEVELOPMENT_SETUP.md](./DEVELOPMENT_SETUP.md) | 从零准备源码环境、启动前后端、配置插件以及各验证层实际证明什么 |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 系统现在怎样运行，未来浏览器、Oracle、Modal、模型 API 怎样分工 |
 | [MODULE_BOUNDARIES.md](./MODULE_BOUNDARIES.md) | 每个模块拥有什么、允许依赖什么、禁止依赖什么 |
 | [PIPELINE_CONTRACTS.md](./PIPELINE_CONTRACTS.md) | 页面、气泡、原子步骤、重试和人工编辑保护规则 |
@@ -48,3 +49,4 @@
 3. 不记录密钥、Token、私有 URL、用户图片或生产配置值。
 4. 接口发生不兼容变化时，先增加版本和迁移策略，再修改调用方。
 5. 完成实现后，将对应章节从 `TARGET` 更新为 `CURRENT`，但只更新已经验证的部分。
+6. 运行 `python tools/validate_docs.py`；错误会阻止提交，不能用手工浏览代替。

@@ -126,7 +126,7 @@ layout capability.
 ## Verification
 
 ```sh
-python -m unittest tests_backend.test_remote_pipeline tests_backend.test_typeset_client tests_backend.test_mtu_worker_adapter tests_backend.test_pipeline_profiles tests_backend.test_stage_backend_registry tests_backend.test_extraction_backend_boundary
+python -m unittest tests_backend.test_pipeline_plugins tests_backend.test_remote_pipeline tests_backend.test_typeset_client tests_backend.test_mtu_worker_adapter tests_backend.test_pipeline_profiles tests_backend.test_stage_backend_registry tests_backend.test_extraction_backend_boundary
 ```
 
 Fixtures execute real Flask handlers, real adapters, the Worker dispatcher and

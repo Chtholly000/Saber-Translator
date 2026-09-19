@@ -8,13 +8,15 @@ specification.
 ## Required reading order
 
 1. `docs/README.md` — authority index and document status rules.
-2. `docs/ARCHITECTURE.md` — current system and approved target topology.
-3. `docs/MODULE_BOUNDARIES.md` — ownership and dependency direction.
-4. `docs/PIPELINE_CONTRACTS.md` — canonical page, bubble, and stage contracts.
-5. `docs/UPSTREAM_MTU.md` — pinned MTU relationship and upgrade procedure.
-6. `docs/STAGE_PLUGINS.md` — plugin configuration, exact ports and lifecycle;
+2. `docs/DEVELOPMENT_SETUP.md` — reproducible source setup, safe startup and
+   what each verification layer actually proves.
+3. `docs/ARCHITECTURE.md` — current system and approved target topology.
+4. `docs/MODULE_BOUNDARIES.md` — ownership and dependency direction.
+5. `docs/PIPELINE_CONTRACTS.md` — canonical page, bubble, and stage contracts.
+6. `docs/UPSTREAM_MTU.md` — pinned MTU relationship and upgrade procedure.
+7. `docs/STAGE_PLUGINS.md` — plugin configuration, exact ports and lifecycle;
    `docs/DEVELOPMENT_HISTORY.md` for historical rationale.
-7. The narrow source files and tests for the component being changed.
+8. The narrow source files and tests for the component being changed.
 
 Do not treat a `TARGET` or `PROPOSED` section as implemented behavior.  Verify
 `CURRENT` claims against the source before relying on them.
@@ -83,6 +85,8 @@ Do not treat a `TARGET` or `PROPOSED` section as implemented behavior.  Verify
 - Frontend unit tests: run the scripts declared in `vue-frontend/package.json`.
 - Frontend production build: run the build script declared there after API or
   shared-type changes.
+- Documentation gate: `python tools/validate_docs.py` after any maintained
+  Markdown or documentation-index change.
 - Always run `git diff --check` before committing.
 
 If dependencies are unavailable, do not claim the affected suite passed.  A
@@ -97,6 +101,8 @@ syntax check is not a substitute for a behavior test.
 - MTU revision, imported capability, mapping, or upgrade procedure →
   `docs/UPSTREAM_MTU.md`.
 - Stage plugin installation, configuration or lifecycle → `docs/STAGE_PLUGINS.md`.
+- Source prerequisites, startup commands or verification layers →
+  `docs/DEVELOPMENT_SETUP.md`.
 - Historical rationale/milestones → `docs/DEVELOPMENT_HISTORY.md`.
 - New authoritative document → add it to `docs/README.md` and remove any
   competing current authority.
