@@ -1,7 +1,8 @@
 # MTU Worker and independent clients
 
-Status: CURRENT implementation with offline integration verification. Cloud image
-build, real model inference and Oracle deployment are NOT verified/deployed.
+Status: CURRENT implementation. The Modal image was deployed and one public
+vertical-page detect/OCR smoke test passed on 2026-09-19. DeepSeek, color,
+inpaint, Oracle deployment and a broad model-quality suite are NOT verified.
 
 ## Composition
 
@@ -61,10 +62,14 @@ NOT yet a GPU-dependency-free Oracle application package.
 
 `modal_app.py` pins MTU revision `f0307a063214f915f2b1d6e5cd3233f3bf78339f` and
 uses that revision's `uv.lock` with the CUDA 12.6 dependency group. Upstream
-dependencies remain confined to the worker image. The definition has been imported
-successfully with Modal SDK 1.5.5 without cloud calls. It has not been built remotely.
+dependencies remain confined to the worker image. Runtime graphics/font libraries
+required by MTU's text-block construction are explicit in the recipe and kept in a
+small layer after the large CUDA dependency layer.
 
-After the operator is ready for paid cloud execution and model license review:
+The recipe was built and deployed with Modal SDK 1.5.5 as
+`saber-mtu-f0307a0` on 2026-09-19. Deployment is external state, so a future
+operator must still confirm that the named app exists before relying on it. To
+deploy or update it after cost and model-license review:
 
 ```sh
 python -m pip install -r requirements-remote.txt
@@ -85,6 +90,30 @@ this as production Oracle/Cloudflare deployment readiness.
 Official SDK references: [authenticated deployed class lookup](https://modal.com/docs/guide/trigger-deployed-functions),
 [container lifecycle](https://modal.com/docs/guide/lifecycle-functions),
 [image construction](https://modal.com/docs/guide/images).
+
+### Live GPU smoke test (2026-09-19)
+
+The deployed class was called directly with upstream's public `pic/before2.png`
+sample. That file contains JPEG bytes despite its suffix, so the test re-encoded
+the same 3065×4096 RGB page as a real PNG before sending it through the contract.
+The request used the default detector at detection size 1536 followed by the MTU
+48px OCR engine.
+
+- Detect returned four regions, all vertical, and a full-size text mask.
+- OCR returned four ID-aligned results with non-empty Japanese text; reported
+  confidence ranged from 0.6856 to 0.9992.
+- Cold-path wall time was 45.285 seconds for detect and 35.326 seconds for OCR,
+  80.612 seconds total.
+- The Modal monthly summary immediately afterward showed USD 0.18 metered and
+  USD 0 billed because credits covered it. This is the aggregate for the build,
+  CPU probes, failed compatibility probes and successful GPU run, not a stable
+  per-page quote.
+
+This proves deployed-class lookup, L4 startup, weight download, detector,
+textline merge, PNG mask transport and 48px OCR for that one page. It does not
+prove general recognition quality, all document orientations, color extraction,
+inpainting, DeepSeek translation, the complete Flask/browser flow, persistent
+model caching or Oracle readiness.
 
 ## Independent clients
 
@@ -134,6 +163,7 @@ actual vendor-object normalization using injected model dispatch functions. The
 DeepSeek HTTP transport is mocked. They cover reversed/missing IDs, rotated
 geometry, empty OCR, image/mask sizes, credential isolation, brush-only repair,
 no local GPU fallback, and blank-image rendering with the real Saber renderer.
-They do not establish the quality or compatibility of live GPU weights. Before
-live activation, build the image and run horizontal, vertical, rotated, empty-page
-and complex-background fixtures on the pinned models.
+The single live vertical-page smoke test above adds a real GPU compatibility
+check, but does not establish general model quality. Before production-like use,
+run horizontal, rotated, empty-page and complex-background fixtures on the pinned
+models and separately exercise color and inpaint.

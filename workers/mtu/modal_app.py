@@ -11,7 +11,7 @@ REVISION = "f0307a063214f915f2b1d6e5cd3233f3bf78339f"
 ROOT = Path(__file__).resolve().parents[2]
 image = (
     modal.Image.debian_slim(python_version="3.12")
-    .apt_install("git", "libgl1", "libglib2.0-0", "libgomp1", "libmecab2")
+    .apt_install("git")
     .pip_install("uv")
     .run_commands(
         "git init /opt/mtu",
@@ -19,6 +19,17 @@ image = (
         f"git -C /opt/mtu fetch --depth=1 origin {REVISION}",
         f"git -C /opt/mtu checkout --detach {REVISION}",
         "uv sync --project /opt/mtu --frozen --no-default-groups --group cuda12.6 --no-install-project",
+    )
+    # Keep runtime libraries after the large Python/CUDA layer so a small
+    # system-library adjustment does not invalidate the dependency download.
+    .apt_install(
+        "libgl1",
+        "libegl1",
+        "libglib2.0-0",
+        "libgomp1",
+        "libmecab2",
+        "libxkbcommon0",
+        "libdbus-1-3",
     )
     .env({"PYTHONPATH": "/opt/mtu/.venv/lib/python3.12/site-packages:/opt/mtu:/root"})
 )

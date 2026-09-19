@@ -164,7 +164,9 @@ detection dict、`OcrResult`、颜色数组或 PNG，绝不返回 MTU `TextBlock
 
 Mask 与输入图片的宽高必须完全一致。缺失/重复/未知 OCR ID、错误 stage、错误契约版本、越界坐标、
 错误图片格式或敏感调用方凭据都会导致契约错误；这些不是可静默 fallback 的情形。该契约已由离线
-Worker dispatcher fixture 覆盖，尚未以真实云端 GPU 权重验证。
+Worker dispatcher fixture 覆盖，并以一张公开 3065×4096 竖排样图完成真实 Modal detector +
+48px OCR 调用，返回四个区域、同尺寸文字蒙版与四个 ID 对齐结果。该单页冒烟测试不覆盖
+color/inpaint，也不是横排、旋转、空页和复杂背景的品质证明。
 
 ### translate
 

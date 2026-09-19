@@ -36,6 +36,14 @@ GPU 计算交给 Modal，文本翻译可用 DeepSeek 等 API。
    惰性实例生命周期、按阶段结果检查、profile 继承、模板与配置检查工具。
    同时修正浏览器按整个 profile 判断本地/远端的逻辑，使“只换 OCR”保留其他阶段设置。
    对应提交可用 Git 日志中的 `feat: make pipeline stages configurable plugins` 定位。
+6. 2026-09-19，Modal 真实冒烟：构建并部署固定 MTU v3.0.4 revision 的 L4 Worker；通过逐次
+   真实调用发现并补齐 `libEGL`、`libxkbcommon`、`libdbus` 运行库，并把系统库层移到大型
+   CUDA/Python 层之后。上游公开竖排样图返回四个检测区、文字蒙版及四个非空 48px OCR
+   结果，冷路径总计 80.612 秒。测试后本月 Modal 汇总为 USD 0.18 metered、USD 0 billed
+   （额度抵扣）；46 个 Worker/插件/profile/CLI 相关测试在干净进程通过。额外的全后端
+   discover 共运行 266 项，因本机 PyTorch 动态库损坏、缺 MangaOCR/ONNX Runtime 及套件间
+   共享状态而有 5 个失败、16 个错误，不能记录为全套通过。DeepSeek、取色、修复、浏览器
+   整链和 Oracle 未在本次验证。
 
 ## 保留的决定与待办
 
@@ -43,5 +51,6 @@ GPU 计算交给 Modal，文本翻译可用 DeepSeek 等 API。
 模型插件和 before/after 中间件插件分别负责执行与加工；前端属于客户端，不能承担模型所有权。
 插件模块由运营者显式选择；配置或代码变更通过重启生效，避免任务中途更换实现。
 
-真实 Modal 镜像构建、模型权重与许可核查、GPU 品质/冷启动/费用验证、异步队列、
-跨设备页面版本保护、轻量 Oracle 运行包和部署恢复仍待完成。不能把离线测试记录改写成上线记录。
+模型权重许可核查、持久缓存、取色/修复与更广 GPU 品质样本、DeepSeek 整链、异步队列、
+跨设备页面版本保护、轻量 Oracle 运行包和部署恢复仍待完成。一次 Modal 冒烟不能改写成
+生产上线记录。

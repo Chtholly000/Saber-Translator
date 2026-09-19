@@ -1,6 +1,7 @@
 # MTU 上游集成说明
 
-状态：上游审计和 Worker 适配代码为 `CURRENT`；真实云镜像/GPU 输出验证仍为 `TARGET`。
+状态：上游审计和 Worker 适配代码为 `CURRENT`；云镜像已部署且检测/48px OCR 已通过一张
+公开竖排样图的真实 GPU 冒烟测试，其余 GPU 阶段与广泛品质验证仍为 `TARGET`。
 
 ## 固定版本
 
@@ -90,6 +91,11 @@ Modal object、Pydantic Config 或 `TextBlock` 放进 payload。OCR/color 必须
 返回；detect 的可选 mask 和 inpaint 返回图必须与输入同尺寸且为 base64 PNG。离线 fixture 覆盖横排、
 竖排、旋转框、空页、mask 尺寸不符、顺序反转与凭据隔离；真实 Worker 接入仍须执行相同类型的 GPU
 fixture，不能把离线结果当成模型质量证明。
+
+2026-09-19 的真实 Modal L4 测试使用该固定 revision、默认 detector（检测尺寸 1536）和 48px OCR
+处理上游公开的 3065×4096 `pic/before2.png` 样图，返回四个竖排区域、同尺寸文字蒙版和四个
+ID 对齐的非空 OCR 结果。冷路径总耗时 80.612 秒。它证明这两个阶段与 Worker 契约在该样图上
+兼容，不替代横排、旋转、空页、复杂背景、取色和修复的真实 fixture。
 
 ## 禁止做法
 
