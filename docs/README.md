@@ -24,9 +24,11 @@
 | [MODULE_BOUNDARIES.md](./MODULE_BOUNDARIES.md) | 每个模块拥有什么、允许依赖什么、禁止依赖什么 |
 | [PIPELINE_CONTRACTS.md](./PIPELINE_CONTRACTS.md) | 页面、气泡、原子步骤、重试和人工编辑保护规则 |
 | [UPSTREAM_MTU.md](./UPSTREAM_MTU.md) | MTU 固定版本、可复用能力、适配边界和升级检查 |
+| [STAGE_PLUGINS.md](./STAGE_PLUGINS.md) | 六阶段独立插件、配置安装/替换、模板、输入输出、生命周期与验证 |
+| [DEVELOPMENT_HISTORY.md](./DEVELOPMENT_HISTORY.md) | 历史：用户目标、实施经过与设计选择，不是当前运行指令 |
 | [../workers/mtu/README.md](../workers/mtu/README.md) | Worker 实现、远程配置、部署验证边界、只抽字/只嵌字客户端 |
 | [../AGENTS.md](../AGENTS.md) | 编码 Agent 的阅读顺序、改动纪律和验证要求 |
-| [../plugins/README.md](../plugins/README.md) | Saber 当前插件钩子的使用方法；它不是后端适配器规范 |
+| [../plugins/README.md](../plugins/README.md) | 原有 before/after 中间件插件用法；模型执行插件见 STAGE_PLUGINS |
 | [../vue-frontend/README.md](../vue-frontend/README.md) | Vue 工程入口和现有前端目录说明 |
 
 ## 文档缺口基线

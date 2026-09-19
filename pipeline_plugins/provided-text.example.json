@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "plugins": [
+    {
+      "stage": "ocr",
+      "name": "provided_text",
+      "factory": "pipeline_plugins.provided_text:build",
+      "options": {"texts": ["示例原文"]}
+    }
+  ],
+  "profiles": {
+    "custom_ocr": {
+      "extends": "local_saber",
+      "stages": {"ocr": "provided_text"}
+    }
+  }
+}

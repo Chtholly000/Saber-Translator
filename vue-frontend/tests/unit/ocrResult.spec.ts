@@ -6,7 +6,8 @@ import { useBubbleStore } from '@/stores/bubbleStore'
 import { executeOcr } from '@/composables/translation/core/steps/ocr'
 import { useSettingsStore } from '@/stores/settingsStore'
 
-const { parallelOcrMock } = vi.hoisted(() => ({
+const { parallelOcrMock, usesLocalStageMock } = vi.hoisted(() => ({
+  usesLocalStageMock: vi.fn(),
   parallelOcrMock: vi.fn(async () => ({
     success: true,
     original_texts: ['こんにちは'],
@@ -58,13 +59,15 @@ vi.mock('@/stores/settingsStore', () => ({
 }))
 
 vi.mock('@/api/parallelTranslate', () => ({
-  parallelOcr: parallelOcrMock
+  parallelOcr: parallelOcrMock,
+  usesLocalStage: usesLocalStageMock,
 }))
 
 describe('OCR result integration', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     parallelOcrMock.mockClear()
+    usesLocalStageMock.mockReset().mockImplementation(async profile => profile === 'local_saber')
   })
 
   it('createBubbleState should initialize ocrResult as null', () => {
@@ -210,6 +213,17 @@ describe('OCR result integration', () => {
     expect(remotePayload).not.toHaveProperty('ai_vision_api_key')
     expect(remotePayload).not.toHaveProperty('custom_ai_vision_base_url')
     expect(remotePayload).not.toHaveProperty('openai_options')
+  })
+
+  it('preserves local OCR configuration in a profile that replaces another stage', async () => {
+    usesLocalStageMock.mockResolvedValue(true)
+    const settingsStore = useSettingsStore()
+    await executeOcr({ imageIndex: 0,
+      image: { originalDataURL: 'data:image/png;base64,abc' } as any,
+      pipelineProfile: 'custom_renderer', bubbleCoords: [[0, 0, 10, 10]],
+      settingsSnapshot: settingsStore.settings as any })
+    expect(usesLocalStageMock).toHaveBeenCalledWith('custom_renderer', 'ocr')
+    expect(parallelOcrMock).toHaveBeenCalledWith(expect.objectContaining({ ocr_engine: 'manga_ocr' }))
   })
 
   it('imageStore should preserve ocrResults when loading legacy-compatible images', () => {

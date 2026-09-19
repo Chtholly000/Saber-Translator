@@ -64,7 +64,7 @@ const lockSize = computed({
         </select>
         <div class="input-hint">方案在每次任务开始时固定；修改只影响下一次任务。</div>
         <div v-if="selectedProfile !== 'local_saber'" class="input-hint">
-          远程方案使用服务器配置的检测、OCR、去字和翻译模型。支持普通整页翻译和去字，嵌字仍由 Saber 执行。配置可选不代表远程服务已通过实测。
+          每个步骤可独立选用插件，组合由服务器配置。保留本地实现的步骤继续使用原设置。支持普通整页翻译和去字；方案可选表示已配置，实际运行还需验证。
         </div>
         <div v-if="profileError" role="alert">{{ profileError }}</div>
       </div>

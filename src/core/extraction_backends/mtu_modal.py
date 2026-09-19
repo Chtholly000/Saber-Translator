@@ -20,8 +20,8 @@ class MtuWorkerClient(Protocol):
         """Execute a versioned worker request without exposing transport objects."""
 
 
-class ModalMtuExtractionBackend:
-    """Synchronous adapter used by current Flask routes after client injection."""
+class ModalMtuDetectorBackend:
+    """MTU detector port; does not require an OCR implementation."""
 
     name = "modal_mtu"
 
@@ -29,7 +29,7 @@ class ModalMtuExtractionBackend:
         self._worker_client = worker_client
         self._model_options = model_options
 
-    def detect(self, image: Any, **options: Any) -> Dict[str, Any]:
+    def execute(self, image: Any, **options: Any) -> Dict[str, Any]:
         request_payload = build_mtu_detect_request(image, options)
         if self._model_options is not None:
             request_payload["options"] = dict(self._model_options.get("detect", {}))
@@ -40,7 +40,17 @@ class ModalMtuExtractionBackend:
             image_height=image.height,
         )
 
-    def ocr(
+
+class ModalMtuOcrBackend:
+    """MTU OCR port; does not require a detector implementation."""
+
+    name = "modal_mtu"
+
+    def __init__(self, worker_client: MtuWorkerClient, model_options=None):
+        self._worker_client = worker_client
+        self._model_options = model_options
+
+    def execute(
         self,
         image: Any,
         bubble_coords: List[Any],
@@ -55,6 +65,22 @@ class ModalMtuExtractionBackend:
             response_payload,
             expected_region_ids=[region["id"] for region in request_payload["regions"]],
         )
+
+
+class ModalMtuExtractionBackend:
+    """Compatibility facade; new code selects the independent stage ports."""
+
+    name = "modal_mtu"
+
+    def __init__(self, worker_client: MtuWorkerClient, model_options=None):
+        self._detector = ModalMtuDetectorBackend(worker_client, model_options)
+        self._ocr = ModalMtuOcrBackend(worker_client, model_options)
+
+    def detect(self, image, **options):
+        return self._detector.execute(image, **options)
+
+    def ocr(self, image, bubble_coords, **options):
+        return self._ocr.execute(image, bubble_coords, **options)
 
 
 def register_modal_mtu_extraction_backend(

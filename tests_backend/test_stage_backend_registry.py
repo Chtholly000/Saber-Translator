@@ -62,13 +62,17 @@ class StageBackendRegistryTests(unittest.TestCase):
         finally:
             unregister_stage_backend("inpaint", "fixture_remote")
 
-    def test_extraction_stages_remain_in_their_dedicated_registry(self) -> None:
-        with self.assertRaisesRegex(ValueError, "可用: translate, inpaint, render"):
-            create_stage_backend(
-                "ocr",
-                "local",
-                local_handler=lambda value: value,
-            )
+    def test_detector_and_ocr_are_independent_stage_registries(self) -> None:
+        from src.core.stage_backends.base import LocalStageBackend
+        register_stage_backend("ocr", "ocr_only", lambda _: LocalStageBackend(lambda value: [value], "ocr_only"))
+        try:
+            backend = create_stage_backend("ocr", "ocr_only", local_handler=lambda *_: self.fail("local"))
+            self.assertEqual(backend.execute("text"), ["text"])
+            self.assertNotIn("ocr_only", registered_stage_backends("detect"))
+            with self.assertRaises(UnsupportedStageBackend):
+                create_stage_backend("detect", "ocr_only", local_handler=lambda *_: {})
+        finally:
+            unregister_stage_backend("ocr", "ocr_only")
 
 
 if __name__ == "__main__":

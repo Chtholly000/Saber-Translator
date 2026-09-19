@@ -41,8 +41,8 @@ Flask 应用
 `local_saber`，其 detect / OCR / translate / inpaint / render 都选 `local`。
 显式提供 `SABER_REMOTE_CONFIG` 后还会注册 `modal_mtu_deepseek`：检测/OCR/取色/修复使用
 MTU Worker，翻译使用 DeepSeek 官方 API，渲染使用 Saber CPU。配置可用不等于云端已实测。
-五个主 API 以及可选 color API 都会通过 profile 解析后端；detect/OCR 使用 `extraction_backends/` 接缝，
-color/translate/inpaint/render 使用各自的 `stage_backends/` registry。detect/OCR 保留旧的
+五个主 API 以及可选 color API 都会通过 profile 解析后端；六阶段使用 `stage_backends/` 中
+各自独立的 registry，OCR 插件不要求实现检测。`extraction_backends/` 是旧注册的兼容桥；detect/OCR 保留旧的
 `extraction_backend` 参数作为过渡。Flask 仍同步等待结果；这不代表 Modal、MTU 或远程任务已经
 部署验证。具体能力与验证边界见 `workers/mtu/README.md`。
 
@@ -59,8 +59,10 @@ MTU Worker v2 契约覆盖检测/OCR/取色/修复。`workers/mtu/runtime.py` �
 导入验证，尚未构建云镜像或执行真实 GPU 推理。原子路由的本地模型导入已延迟，但完整 app.py
 仍包含旧的重型依赖，不能宣称 Oracle 轻量部署包已经完成。
 
-插件系统只在步骤执行前后改写 payload/result。插件不能安全地承担模型生命周期、远程任务、
-幂等重试或大型图片传输，因此插件与后端适配器必须保持不同概念。
+`SABER_PIPELINE_CONFIG` 可声明六阶段的独立执行插件，并用 profile 继承只替换其中一步。
+`src/core/pipeline_plugins/` 负责配置检查、工厂惰性导入、实例复用、串行调用、输出检查和关闭。
+原有 `plugins/` before/after 中间件继续包围执行调用。两类插件均不提供持久任务/幂等协议。
+安装方法、运行边界和模板以 `docs/STAGE_PLUGINS.md` 为准。
 
 ## CURRENT：状态所有权
 
@@ -132,7 +134,7 @@ detect → ocr → translate → inpaint → render
 
 颜色提取、术语抽取、保存和导出属于可选能力，不应迫使所有路径运行完整链路。
 
-## TARGET：三层可替换性
+## CURRENT：阶段插件与三层职责
 
 模块化分成三个互不混淆的维度：
 
@@ -141,7 +143,8 @@ detect → ocr → translate → inpaint → render
 3. 展示/控制客户端：Vue 浏览器、批处理 CLI、或其他遵守 API 的客户端。
 
 例如 `MTU OCR on Modal` 是“OCR 阶段端口 + Modal 执行适配器 + MTU 实现”的组合。
-更换 OCR 模型只改变配置和适配器注册，不改变路由、书架、编辑器或页面格式。
+切换已适配 OCR 只改变配置；新模型添加一个插件模块和配置项，不改变路由、书架、编辑器或页面格式。
+六阶段执行端口已可独立替换；Vue 等客户端仍通过 API 替换，不是可热插拔的 UI 插件。
 
 完整 profile 把五个核心阶段和可选 color 的已注册适配器组合成一次**自动运行**。它不是视觉工作流编辑器，
 也不是另一套编排引擎：步骤图仍由 pipeline controller 拥有。这样可以把 GPU、API 模型和

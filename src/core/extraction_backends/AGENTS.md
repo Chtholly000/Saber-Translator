@@ -1,6 +1,6 @@
 # Extraction Backend Rules
 
-This directory is a transitional execution seam for detection and OCR.  The
+This directory is a compatibility facade for older detection/OCR callers. The
 root `AGENTS.md` and `docs/MODULE_BOUNDARIES.md` remain authoritative.
 
 - Keep contracts free of Flask, Vue, filesystem sessions, vendor SDKs, and
@@ -17,6 +17,8 @@ root `AGENTS.md` and `docs/MODULE_BOUNDARIES.md` remain authoritative.
 - Unsupported backends must fail explicitly; do not silently fall back to local
   execution when the user selected a remote backend.
 
-The target architecture has stage-specific ports with shared execution clients.
-Do not expand the current combined `ExtractionBackend` into a universal pipeline
-backend.  When adding inpainting or rendering, introduce their own stage ports.
+All six stages now resolve through independent stage_backends registries. Legacy
+register_extraction_backend bridges its detect/ocr methods into those registries.
+New implementations must use a single stage execute port and explicit plugin
+configuration; see docs/STAGE_PLUGINS.md. The MTU combined class delegates to the
+independent detector/OCR classes solely for compatibility.

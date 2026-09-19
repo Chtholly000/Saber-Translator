@@ -154,6 +154,16 @@ export function getPipelineProfiles() {
   return apiClient.get<{ success: boolean; profiles: PipelineProfileInfo[] }>('/api/parallel/profiles')
 }
 
+/** Decide per stage: a custom profile can mix browser-configured local stages
+ * and server-configured plugins. Never guess from the profile's name. */
+export async function usesLocalStage(profile: string, stage: string): Promise<boolean> {
+  if (profile === 'local_saber') return true
+  const response = await getPipelineProfiles()
+  const backend = response.profiles?.find(item => item.name === profile)?.stage_backends[stage]
+  if (!response.success || !backend) throw new Error(`计算方案不可用：${profile}/${stage}`)
+  return backend === 'local'
+}
+
 // ==================== 翻译 API ====================
 
 export interface ParallelTranslateParams {

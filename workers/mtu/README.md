@@ -8,6 +8,11 @@ build, real model inference and Oracle deployment are NOT verified/deployed.
 `src/core/remote_bootstrap.py` registers `modal_mtu_deepseek` only when given an
 explicit configuration. The normal `local_saber` default stays available.
 
+Alternatively, `SABER_PIPELINE_CONFIG` selects independent factories for each
+stage; `pipeline_plugins/mtu.example.json` demonstrates replacing only OCR while
+keeping the other stages. See [stage plugins](../../docs/STAGE_PLUGINS.md) for
+configuration, templates and the legacy registration compatibility bridge.
+
 | Stage | Implementation | Execution |
 | --- | --- | --- |
 | detect | pinned MTU detector + textline merger | Modal |
@@ -98,6 +103,9 @@ translation, inpainting or cloud access:
 ```sh
 python -m tools.typeset --image blank.png --layout captions.json --output lettered.png
 ```
+
+Both clients also accept `--plugins-config pipeline.json --profile chosen_name`
+to select configured stage plugins. Typesetting initializes only the render plugin.
 
 `captions.json` contains existing `BubbleState` fields. An AI client can generate
 the layout as data; the command requires no manual editing UI:

@@ -22,7 +22,6 @@ from src.core.local_stage_handlers import (
     validate_manga_48_hybrid_combo, translate_text_list, inpaint_bubbles,
     render_bubbles_unified, calculate_auto_font_size, extract_bubble_colors,
 )
-from src.core.extraction_backends import create_extraction_backend
 from src.core.pipeline_profiles import (
     OPTIONAL_PIPELINE_STAGES,
     PIPELINE_STAGES,
@@ -30,7 +29,7 @@ from src.core.pipeline_profiles import (
     registered_pipeline_profiles,
     resolve_stage_backend_request,
 )
-from src.core.stage_backends import create_stage_backend
+from src.core.stage_backends import create_stage_backend, registered_stage_backends
 from src.core.ocr_types import ocr_results_to_dicts, extract_texts_from_ocr_results
 from src.core.config_models import BubbleState, bubble_states_to_api_response
 from src.core.translation_constraints import (
@@ -59,12 +58,7 @@ logger = logging.getLogger('ParallelAPI')
 
 
 def _request_extraction_backend(data, stage):
-    """Resolve one extraction stage without coupling routes to an adapter.
-
-    ``extraction_backend`` remains supported while the older combined seam is
-    being split. A stage-specific value is preferred; conflicting values fail
-    rather than unexpectedly selecting one of two remote workers.
-    """
+    """Resolve an independent detect/OCR port, accepting the old request alias."""
     stage_override_key = 'detector_backend' if stage == 'detect' else 'ocr_backend'
     profile, backend_name = resolve_stage_backend_request(
         data.get('pipeline_profile'),
@@ -72,10 +66,10 @@ def _request_extraction_backend(data, stage):
         stage_backend=data.get(stage_override_key),
         legacy_backend=data.get('extraction_backend'),
     )
-    backend = create_extraction_backend(
-        backend_name,
-        local_detect=get_bubble_detection_result_with_auto_directions,
-        local_ocr=recognize_ocr_results_in_bubbles,
+    backend = create_stage_backend(
+        stage, backend_name,
+        local_handler=(get_bubble_detection_result_with_auto_directions
+                       if stage == 'detect' else recognize_ocr_results_in_bubbles),
     )
     return profile, backend
 
@@ -207,6 +201,15 @@ def pipeline_profiles():
     ]})
 
 
+@parallel_bp.route('/parallel/backends', methods=['GET'])
+def pipeline_backends():
+    # Public metadata only. No factory paths, model options or credential names.
+    return jsonify({'success': True, 'backends': {
+        stage: registered_stage_backends(stage)
+        for stage in PIPELINE_STAGES + OPTIONAL_PIPELINE_STAGES
+    }})
+
+
 @parallel_bp.route('/parallel/detect', methods=['POST'])
 def parallel_detect():
     """仅执行检测步骤"""
@@ -243,7 +246,7 @@ def parallel_detect():
         
         # 执行检测
         pipeline_profile, extraction_backend = _request_extraction_backend(data, 'detect')
-        result = extraction_backend.detect(
+        result = extraction_backend.execute(
             img_pil,
             detector_type=detector_type,
             expand_ratio=expand_ratio,
@@ -423,7 +426,7 @@ def parallel_ocr():
             ocr_options = {key: ocr_options[key] for key in (
                 'source_language', 'textlines_per_bubble',
             )}
-        ocr_results = extraction_backend.ocr(img_pil, bubble_coords, **ocr_options)
+        ocr_results = extraction_backend.execute(img_pil, bubble_coords, **ocr_options)
         response_payload = {
             'success': True,
             'pipeline_profile': pipeline_profile.name,
@@ -623,15 +626,18 @@ def parallel_translate():
         )
         
         # 执行翻译
-        translated_texts = translation_backend.execute(
-            protected_original_texts,
-            target_language=target_language,
+        provider_options = dict(
             model_provider=model_provider,
             api_key=api_key,
             model_name=model_name,
-            prompt_content=effective_prompt_content,
             custom_base_url=custom_base_url,
             openai_options=openai_options,
+        ) if translation_backend.name == 'local' else {}
+        translated_texts = translation_backend.execute(
+            protected_original_texts,
+            target_language=target_language,
+            prompt_content=effective_prompt_content,
+            **provider_options,
         )
         translated_texts = restore_texts_with_non_translate(translated_texts, protected_original_mappings)
         
@@ -647,17 +653,14 @@ def parallel_translate():
             textbox_texts = translation_backend.execute(
                 protected_textbox_originals,
                 target_language=target_language,
-                model_provider=model_provider,
-                api_key=api_key,
-                model_name=model_name,
                 prompt_content=append_prompt_sections(
                     textbox_prompt_content,
                     glossary_prompt,
                     non_translate_prompt,
                     build_non_translate_guard_prompt(protected_textbox_mappings, target_language=target_language),
                 ),
-                custom_base_url=custom_base_url,
-                openai_options=textbox_openai_options,
+                **({**provider_options, 'openai_options': textbox_openai_options}
+                   if translation_backend.name == 'local' else {}),
             )
             textbox_texts = restore_texts_with_non_translate(textbox_texts, protected_textbox_mappings)
 
@@ -891,7 +894,7 @@ def parallel_render():
         clean_image_pil = Image.fromarray(clean_image)
         
         # 如果启用自动字号，为每个气泡计算最佳字号
-        if auto_font_size:
+        if auto_font_size and render_backend.name == 'local':
             for i, state in enumerate(bubble_states):
                 if state.translated_text:
                     x1, y1, x2, y2 = state.coords
@@ -904,7 +907,8 @@ def parallel_render():
                     state.font_size = calculated_size
         
         # 执行渲染
-        final_image_pil = render_backend.execute(clean_image_pil, bubble_states)
+        render_options = {'auto_font_size': True} if auto_font_size and render_backend.name != 'local' else {}
+        final_image_pil = render_backend.execute(clean_image_pil, bubble_states, **render_options)
         final_image = np.array(final_image_pil)
         updated_states = bubble_states
         

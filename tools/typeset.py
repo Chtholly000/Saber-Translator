@@ -10,6 +10,7 @@ from src.core.config_models import BubbleState
 from src.core.local_stage_handlers import render_bubbles_unified
 from src.core.pipeline_profiles import resolve_stage_backend
 from src.core.stage_backends import create_stage_backend
+from src.core.pipeline_plugins import configure_pipeline_plugins
 
 
 def typeset(image, layout, *, profile="local_saber"):
@@ -31,15 +32,25 @@ def main():
     parser.add_argument("--image", required=True, type=Path)
     parser.add_argument("--layout", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--plugins-config", type=Path, help="Stage plugin configuration")
+    parser.add_argument("--profile", default="local_saber")
     args = parser.parse_args()
     if args.output.exists():
         parser.error("输出文件已存在，请选择新路径")
     with args.layout.open(encoding="utf-8") as handle:
         layout = json.load(handle)
-    with Image.open(args.image) as image:
-        output = typeset(image, layout)
-    with args.output.open("xb") as handle:
-        output.save(handle, format="PNG")
+    installation = None
+    try:
+        if args.plugins_config:
+            with args.plugins_config.open(encoding="utf-8") as handle:
+                installation = configure_pipeline_plugins(json.load(handle))
+        with Image.open(args.image) as image:
+            output = typeset(image, layout, profile=args.profile)
+        with args.output.open("xb") as handle:
+            output.save(handle, format="PNG")
+    finally:
+        if installation:
+            installation.close()
 
 
 if __name__ == "__main__":

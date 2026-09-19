@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "plugins": [
+    {
+      "stage": "detect", "name": "mtu_detector",
+      "factory": "src.core.pipeline_plugins.factories:mtu_detect",
+      "options": {"worker": {"app_name": "saber-mtu-f0307a0"}, "model": {"detector": "default", "detection_size": 1536}}
+    },
+    {
+      "stage": "ocr", "name": "mtu_48px",
+      "factory": "src.core.pipeline_plugins.factories:mtu_ocr",
+      "options": {"worker": {"app_name": "saber-mtu-f0307a0"}, "model": {"ocr": "48px"}}
+    },
+    {
+      "stage": "ocr", "name": "mtu_mocr",
+      "factory": "src.core.pipeline_plugins.factories:mtu_ocr",
+      "options": {"worker": {"app_name": "saber-mtu-f0307a0"}, "model": {"ocr": "mocr"}}
+    },
+    {
+      "stage": "color", "name": "mtu_color",
+      "factory": "src.core.pipeline_plugins.factories:mtu_color",
+      "options": {"worker": {"app_name": "saber-mtu-f0307a0"}}
+    },
+    {
+      "stage": "translate", "name": "deepseek_api",
+      "factory": "src.core.pipeline_plugins.factories:deepseek",
+      "options": {"model": "deepseek-chat", "api_key_env": "DEEPSEEK_API_KEY"}
+    },
+    {
+      "stage": "inpaint", "name": "mtu_inpaint",
+      "factory": "src.core.pipeline_plugins.factories:mtu_inpaint",
+      "options": {"worker": {"app_name": "saber-mtu-f0307a0"}, "model": {"inpainter": "lama_mpe"}}
+    }
+  ],
+  "profiles": {
+    "modular_mtu": {
+      "stages": {"detect": "mtu_detector", "ocr": "mtu_48px", "color": "mtu_color", "translate": "deepseek_api", "inpaint": "mtu_inpaint", "render": "local"}
+    },
+    "modular_mtu_mocr": {
+      "extends": "modular_mtu",
+      "stages": {"ocr": "mtu_mocr"}
+    }
+  }
+}

@@ -4,7 +4,7 @@
  * 
  * 注意：这是最复杂的步骤，包含两种翻译模式
  */
-import { parallelTranslate, type ParallelTranslateResponse } from '@/api/parallelTranslate'
+import { parallelTranslate, usesLocalStage, type ParallelTranslateResponse } from '@/api/parallelTranslate'
 import { translateSingleText } from '@/api/translate'
 import type { BookTranslationConstraints } from '@/types/bookTranslationConstraints'
 import type { TranslationSettings } from '@/types/settings'
@@ -199,7 +199,7 @@ export async function executeTranslate(input: TranslateInput): Promise<Translate
         // A configured remote profile owns its provider, model and credentials
         // on the server. Do not send unrelated browser-local credentials or a
         // custom endpoint through the control plane.
-        const localProviderOptions = pipelineProfile === 'local_saber'
+        const localProviderOptions = await usesLocalStage(pipelineProfile, 'translate')
             ? {
                 model_provider: settings.translation.provider,
                 model_name: settings.translation.modelName,

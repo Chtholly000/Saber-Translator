@@ -216,7 +216,7 @@ export async function executeDetection(input: DetectionInput): Promise<Detection
     // 这样所有检测器都能享受精确掩膜的好处
     let textMaskData: string | undefined = response.raw_mask || undefined
 
-    if (pipelineProfile === 'local_saber') {
+    if (response.execution_backend === 'local' || (!response.execution_backend && pipelineProfile === 'local_saber')) {
     console.log(`使用 Default 检测器生成精确文字掩膜...`)
     try {
         const maskResponse: ParallelDetectResponse = await parallelDetect({

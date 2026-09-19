@@ -58,12 +58,21 @@ IoU 匹配既有气泡；检测不到的人工锁定气泡仍保留，用户必�
 `SABER_REMOTE_CONFIG` 装配成功时才会注册 `modal_mtu_deepseek`。该 profile 的存在表示代码和
 非秘密配置可用，并不宣称 Modal 镜像、权重或 GPU 推理已经通过实测。
 
+`SABER_PIPELINE_CONFIG`（schema_version 1）也可声明六阶段插件及新 profile，并继承现有方案
+只覆盖某一步。配置在进程启动时验证，工厂在第一次执行时才导入；接口和输出类型以
+`STAGE_PLUGINS.md` 为准。旧 extraction 注册通过兼容桥接入同一组独立阶段端口。
+`GET /api/parallel/backends` 返回六阶段已注册名称，不暴露工厂/配置，也不是运行健康检查。
+
 浏览器设置的 `automaticPipelineProfile` 在 `PipelineRuntime` 创建时被固定为 `pipelineProfile`；同一
 自动运行中的 detect、OCR、color、translate、inpaint、render 只能使用这一值。保存页面时该值写入
 `pipelineProfile` provenance。逐气泡翻译尚未迁移到阶段后端，因此非 `local_saber` profile 必须
 在前端明确失败，不能无提示改走旧单气泡 API。
 
 `automaticPipelineProfile` 随设置 schema v4 一同持久化；旧设置在加载时由默认值补齐并升级到 v4。
+
+浏览器根据所选方案中 OCR/translate 的实际阶段名决定是否发送旧本地模型设置，不能以
+profile 是否叫 local_saber 判断所有步骤的位置。自定义 OCR/翻译插件仅接收业务输入，
+路由不会转发浏览器保存的供应商凭据/地址。自定义 render 自行实现自动字号，避免绑定本地排版算法。
 
 ## TARGET：持久工程文档
 

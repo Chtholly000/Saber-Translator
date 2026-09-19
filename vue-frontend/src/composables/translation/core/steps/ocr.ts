@@ -2,7 +2,7 @@
  * OCR 步骤
  * 提取自 SequentialPipeline.ts Line 289-325
  */
-import { parallelOcr, type ParallelOcrResponse } from '@/api/parallelTranslate'
+import { parallelOcr, usesLocalStage, type ParallelOcrResponse } from '@/api/parallelTranslate'
 import { normalizeProviderId } from '@/config/aiProviders'
 import type { BubbleCoords, BubbleState } from '@/types/bubble'
 import type { ImageData as AppImageData } from '@/types/image'
@@ -39,7 +39,8 @@ export async function executeOcr(input: OcrInput): Promise<OcrOutput> {
     const base64 = extractBase64(image.originalDataURL)
 
     // PaddleOCR-VL 使用独立的源语言设置
-    const ocrSourceLanguage = settings.ocrEngine === 'paddleocr_vl'
+    const localStage = await usesLocalStage(pipelineProfile, 'ocr')
+    const ocrSourceLanguage = localStage && settings.ocrEngine === 'paddleocr_vl'
         ? settings.paddleOcrVl?.sourceLanguage || 'japanese'
         : settings.sourceLanguage
 
@@ -54,7 +55,7 @@ export async function executeOcr(input: OcrInput): Promise<OcrOutput> {
         return textlinesPerBubble?.[index] || []
     })
 
-    const localOcrOptions = pipelineProfile === 'local_saber'
+    const localOcrOptions = localStage
         ? {
             ocr_engine: settings.ocrEngine,
             baidu_api_key: settings.baiduOcr?.apiKey,

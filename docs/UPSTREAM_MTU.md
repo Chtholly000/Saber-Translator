@@ -80,6 +80,11 @@ profile 的一项。
 CUDA 依赖组的部署配方。控制进程的 `modal_worker_client.py` 只在真正执行时才导入 Modal SDK，
 `remote_bootstrap.py` 只在显式非秘密配置存在时注册 profile。
 
+检测/OCR 现有独立 `ModalMtuDetectorBackend`、`ModalMtuOcrBackend`，旧组合类仅保留兼容。
+`src/core/pipeline_plugins/factories.py` 将 MTU 各阶段暴露为可配置的独立工厂，示例
+`pipeline_plugins/mtu.example.json` 用两个 profile 演示只切换 48px/mocr。新 OCR 可以来自另一
+插件包，仍复用原检测、取色、修补和翻译；不必修改 MTU 或 Saber 的主流程。
+
 Worker 请求/响应使用 `saber-mtu-worker/v2`；严禁把 API Key、签名 artifact URL、HTTP response、
 Modal object、Pydantic Config 或 `TextBlock` 放进 payload。OCR/color 必须按 `region-N` ID 对齐并完整
 返回；detect 的可选 mask 和 inpaint 返回图必须与输入同尺寸且为 base64 PNG。离线 fixture 覆盖横排、

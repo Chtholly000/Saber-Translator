@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
-const { parallelTranslateMock, translateSingleTextMock } = vi.hoisted(() => ({
+const { parallelTranslateMock, translateSingleTextMock, usesLocalStageMock } = vi.hoisted(() => ({
+  usesLocalStageMock: vi.fn(),
   parallelTranslateMock: vi.fn(),
   translateSingleTextMock: vi.fn(),
 }))
 
 vi.mock('@/api/parallelTranslate', () => ({
   parallelTranslate: parallelTranslateMock,
+  usesLocalStage: usesLocalStageMock,
 }))
 
 vi.mock('@/api/translate', () => ({
@@ -23,6 +25,20 @@ describe('executeTranslate', () => {
     setActivePinia(createPinia())
     parallelTranslateMock.mockReset()
     translateSingleTextMock.mockReset()
+    usesLocalStageMock.mockReset().mockImplementation(async profile => profile === 'local_saber')
+  })
+
+  it('keeps browser translation settings when only OCR is replaced', async () => {
+    usesLocalStageMock.mockResolvedValue(true)
+    const settingsStore = useSettingsStore()
+    settingsStore.settings.translation.translationMode = 'batch'
+    settingsStore.settings.translation.apiKey = 'local-test-key'
+    parallelTranslateMock.mockResolvedValue({ success: true, translated_texts: ['译文'] })
+    await executeTranslate({ imageIndex: 0, pipelineProfile: 'custom_ocr', originalTexts: ['原文'],
+      settingsSnapshot: settingsStore.settings, isBookshelfMode: false,
+      bookTranslationConstraints: createEmptyBookTranslationConstraints() })
+    expect(usesLocalStageMock).toHaveBeenCalledWith('custom_ocr', 'translate')
+    expect(parallelTranslateMock).toHaveBeenCalledWith(expect.objectContaining({ api_key: 'local-test-key' }))
   })
 
   it('forwards glossary and non-translate settings in batch mode and returns warnings', async () => {

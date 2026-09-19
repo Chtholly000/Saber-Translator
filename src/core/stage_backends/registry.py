@@ -1,4 +1,4 @@
-"""Per-stage registries for translation, inpainting, and rendering backends."""
+"""Independent registries for all six processing stages."""
 
 from typing import Callable, Dict, Optional, Tuple
 
@@ -11,7 +11,7 @@ from .base import (
 
 
 StageBackendFactory = Callable[[StageCallable], StageBackend]
-STAGE_BACKEND_STAGES: Tuple[str, ...] = ("translate", "inpaint", "render", "color")
+STAGE_BACKEND_STAGES: Tuple[str, ...] = ("detect", "ocr", "color", "translate", "inpaint", "render")
 _STAGE_BACKEND_FACTORIES: Dict[str, Dict[str, StageBackendFactory]] = {
     stage: {} for stage in STAGE_BACKEND_STAGES
 }

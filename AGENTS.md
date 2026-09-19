@@ -12,7 +12,9 @@ specification.
 3. `docs/MODULE_BOUNDARIES.md` — ownership and dependency direction.
 4. `docs/PIPELINE_CONTRACTS.md` — canonical page, bubble, and stage contracts.
 5. `docs/UPSTREAM_MTU.md` — pinned MTU relationship and upgrade procedure.
-6. The narrow source files and tests for the component being changed.
+6. `docs/STAGE_PLUGINS.md` — plugin configuration, exact ports and lifecycle;
+   `docs/DEVELOPMENT_HISTORY.md` for historical rationale.
+7. The narrow source files and tests for the component being changed.
 
 Do not treat a `TARGET` or `PROPOSED` section as implemented behavior.  Verify
 `CURRENT` claims against the source before relying on them.
@@ -47,8 +49,10 @@ Do not treat a `TARGET` or `PROPOSED` section as implemented behavior.  Verify
    `translate`, `inpaint`, `render`). Execution adapters describe where/how
    they run (`local`, `modal`, `api`). Do not combine those two decisions in UI
    components.
-6. Plugin hooks are middleware around a stage.  They are not a substitute for
-   a backend adapter or a durable job protocol.
+6. Processing plugins implement independent stage ports via explicit server
+   configuration. Legacy before/after hooks remain middleware around those ports.
+   Neither mechanism is a durable job protocol. New models must not require
+   route changes or a combined detect/OCR implementation.
 7. Keep the existing local behavior as the default until a remote adapter has
    contract tests and an explicit configuration path.
 8. Do not log API keys, authorization headers, signed URLs, full request bodies
@@ -92,6 +96,8 @@ syntax check is not a substitute for a behavior test.
   `docs/PIPELINE_CONTRACTS.md`.
 - MTU revision, imported capability, mapping, or upgrade procedure →
   `docs/UPSTREAM_MTU.md`.
+- Stage plugin installation, configuration or lifecycle → `docs/STAGE_PLUGINS.md`.
+- Historical rationale/milestones → `docs/DEVELOPMENT_HISTORY.md`.
 - New authoritative document → add it to `docs/README.md` and remove any
   competing current authority.
 

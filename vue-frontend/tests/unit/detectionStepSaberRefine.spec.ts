@@ -66,6 +66,18 @@ describe('executeDetection saber yolo refine flags', () => {
     expect(result.textMask).toBe('remote-mask')
   })
 
+  it('keeps the local mask detector when a custom profile only replaces OCR', async () => {
+    parallelDetectMock
+      .mockResolvedValueOnce({ success: true, execution_backend: 'local', bubble_coords: [] })
+      .mockResolvedValueOnce({ success: true, raw_mask: 'local-mask' })
+    const { executeDetection } = await import('@/composables/translation/core/steps/detection')
+    const result = await executeDetection({ imageIndex: 0,
+      image: { originalDataURL: 'data:image/png;base64,ZmFrZQ==' } as any,
+      pipelineProfile: 'custom_ocr', settingsSnapshot: detectionSettingsSnapshot })
+    expect(parallelDetectMock).toHaveBeenCalledTimes(2)
+    expect(result.textMask).toBe('local-mask')
+  })
+
   it('keeps a remote detector polygon on the BubbleState used by later inpaint', async () => {
     const polygon = [[1, 1], [12, 2], [11, 14], [0, 13]]
     parallelDetectMock.mockResolvedValueOnce({

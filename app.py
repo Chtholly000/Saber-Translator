@@ -175,6 +175,8 @@ CORS(app)
 # Explicit opt-in composition. Configuration errors stop startup; no local fallback.
 from src.core.remote_bootstrap import configure_remote_backends_from_env
 configure_remote_backends_from_env()
+from src.core.pipeline_plugins import configure_pipeline_plugins_from_env
+configure_pipeline_plugins_from_env()
 
 # --- 初始化插件管理器 ---
 try:

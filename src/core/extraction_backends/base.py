@@ -1,8 +1,7 @@
-"""Contracts for selecting where text extraction work is executed.
+"""Legacy combined extraction API, retained for existing integrations.
 
-Detection and OCR intentionally share one boundary because a remote worker can
-reuse the decoded image and loaded models.  Translation, storage, and rendering
-remain outside this contract.
+New implementations use independent DetectorBackend/OcrBackend execute ports
+from stage_backends. Sharing a worker does not require sharing a stage interface.
 """
 
 from dataclasses import dataclass

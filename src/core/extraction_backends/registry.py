@@ -10,6 +10,10 @@ from .base import (
     UnsupportedExtractionBackend,
 )
 from .local import LocalExtractionBackend
+from src.core.stage_backends import (
+    register_stage_backend, registered_stage_backends, unregister_stage_backend,
+)
+from src.core.stage_backends.base import LocalStageBackend
 
 
 BackendFactory = Callable[[LocalExtractionFunctions], ExtractionBackend]
@@ -32,6 +36,25 @@ def register_extraction_backend(
     normalized = _normalize_name(name)
     if normalized in _BACKEND_FACTORIES and not replace:
         raise ValueError(f"提取后端已注册: {normalized}")
+    if normalized != "local":
+        # Legacy registrations become two independent ports. New plugins only
+        # implement the stage they provide; this bridge is for older callers.
+        if not replace and any(normalized in registered_stage_backends(stage) for stage in ("detect", "ocr")):
+            raise ValueError(f"阶段后端已注册: {normalized}")
+
+        def bridge(stage):
+            def make(local_handler):
+                def unused(*args, **kwargs):
+                    raise RuntimeError("旧提取后端不能从一个阶段隐式调用另一个阶段")
+                functions = LocalExtractionFunctions(
+                    detect=local_handler if stage == "detect" else unused,
+                    ocr=local_handler if stage == "ocr" else unused,
+                )
+                return LocalStageBackend(getattr(factory(functions), stage), name=normalized)
+            return make
+
+        for stage in ("detect", "ocr"):
+            register_stage_backend(stage, normalized, bridge(stage), replace=replace)
     _BACKEND_FACTORIES[normalized] = factory
 
 
@@ -41,7 +64,9 @@ def unregister_extraction_backend(name: str) -> None:
     normalized = _normalize_name(name)
     if normalized == "local":
         raise ValueError("不能注销内置 local 提取后端")
-    _BACKEND_FACTORIES.pop(normalized, None)
+    if _BACKEND_FACTORIES.pop(normalized, None) is not None:
+        for stage in ("detect", "ocr"):
+            unregister_stage_backend(stage, normalized)
 
 
 def registered_extraction_backends() -> Tuple[str, ...]:
