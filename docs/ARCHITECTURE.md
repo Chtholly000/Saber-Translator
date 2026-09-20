@@ -36,17 +36,20 @@ Flask 应用
 - `vue-frontend/src/composables/translation/core/atomicSteps.ts`：步骤结果如何写回上下文。
 - `src/core/config_models.py`：Python `BubbleState` 序列化模型。
 - `src/core/page_storage.py`：页面图片、页面元数据和会话元数据的持久化。
+- `src/core/page_pipeline.py`：不依赖 HTTP/UI 的整页编排器，直接按 profile 调用六阶段端口。
 
 当前 `src/core/pipeline_profiles.py` 已建立自动流水线的组合点。默认内置的完整 profile 是
 `local_saber`，其 detect / OCR / translate / inpaint / render 都选 `local`。
 显式提供 `SABER_REMOTE_CONFIG` 后还会注册 `modal_mtu_deepseek`：检测/OCR/取色/修复使用
 MTU Worker，翻译使用 DeepSeek 官方 API，渲染使用 Saber CPU。配置可用不等于整条远程
-组合已实测；所附 MTU Worker 的检测/OCR 已在一张公开竖排样图上通过真实 Modal GPU 验证，
-同一批四条 OCR 文字也已通过独立的 DeepSeek 实际翻译调用，但两段尚未串成一次浏览器任务。
+组合已实测；所附 MTU Worker 的检测/OCR/取色/修补已在一张公开竖排样图上通过真实 Modal GPU
+调用，同一批四条 OCR 文字也已通过独立的 DeepSeek 实际翻译调用。无界面客户端已把真实 Modal
+四阶段、此前实际 DeepSeek 结果和 Saber renderer 串成一次出图，但尚未在同一运行中重新调用
+DeepSeek，也没有串成浏览器任务。
 五个主 API 以及可选 color API 都会通过 profile 解析后端；六阶段使用 `stage_backends/` 中
 各自独立的 registry，OCR 插件不要求实现检测。`extraction_backends/` 是旧注册的兼容桥；detect/OCR 保留旧的
-`extraction_backend` 参数作为过渡。Flask 仍同步等待结果；这不代表修复、浏览器整链或远程任务
-协议已经部署验证。具体能力与验证边界见 `workers/mtu/README.md`。
+`extraction_backend` 参数作为过渡。Flask 仍同步等待结果；这不代表当前修复质量已达生产要求、
+浏览器整链或远程任务协议已经部署验证。具体能力与验证边界见 `workers/mtu/README.md`。
 
 Vue 是当前浏览器客户端，不是自动流水线的所有者。它可以被另一客户端（例如批处理客户端）
 替换，只要后者遵守任务/API 和持久化契约；MTU 的 Qt 界面也不能直接当作 Saber 客户端嵌入。
@@ -60,8 +63,10 @@ MTU Worker v2 契约覆盖检测/OCR/取色/修复。`workers/mtu/runtime.py` �
 调用和字段转换，`modal_worker_client.py` 提供惰性的认证 SDK client；独立部署定义已通过 SDK
 构建并部署，固定版本 detector 与 48px OCR 已在 Modal L4 上用一张 3065×4096 竖排样图
 完成真实调用。DeepSeek 是独立阶段，已用该页产生的四条 OCR 文字完成一次真实调用；这仍不覆盖
-取色、修复、完整浏览器链路或广泛模型品质。原子路由的本地模型导入已延迟，但完整 app.py 仍
-包含旧的重型依赖，不能宣称 Oracle 轻量部署包已经完成。
+完整浏览器链路或广泛模型品质。随后无界面客户端在同一页实际执行 Modal 取色和 lama_mpe 修补，
+并由 Saber CPU renderer 生成最终 PNG；结果仍有明显残字和一处排版越界，所以只是接口兼容性与
+像素写回证明，不是质量验收。原子路由的本地模型导入已延迟，但完整 app.py 仍包含旧的重型依赖，
+不能宣称 Oracle 轻量部署包已经完成。
 
 `SABER_PIPELINE_CONFIG` 可声明六阶段的独立执行插件，并用 profile 继承只替换其中一步。
 `src/core/pipeline_plugins/` 负责配置检查、工厂惰性导入、实例复用、串行调用、输出检查和关闭。
@@ -170,7 +175,7 @@ detect → ocr → translate → inpaint → render
 
 ## 尚未实施
 
-- Modal 取色/修复与多方向、多背景 GPU 品质验证，以及持久模型缓存。
+- Modal 取色/修复已完成单张竖排样图兼容性验证；仍缺多方向、多背景品质验证、参数调优和持久模型缓存。
 - 异步远程任务队列、超时/取消传播、幂等与页面 revision 写回。
 - 完整 Saber 控制面的 GPU 依赖剥离与 Oracle 轻量运行包。
 - DeepSeek 专用配置界面；现有 OpenAI-compatible 能力是否足够仍需验证。
@@ -182,3 +187,9 @@ detect → ocr → translate → inpaint → render
 `tools/extract_text.py` 只调用 detect/OCR 端口并导出气泡 JSON；`tools/typeset.py` 直接消费
 图片与 BubbleState JSON，只调用 render 端口。后者已用真实 Saber CPU 渲染器验证空白图出字，
 不依赖前面四步。AI 可以生成文字/坐标 JSON，浏览器编辑器不是调用这些能力的必需条件。
+
+`tools/translate_page.py` 是同一组端口的无界面完整客户端。它通过
+`src/core/page_pipeline.py` 固定执行 detect → OCR → 可选 color → translate → inpaint → render，
+但每一步的实现仍完全由所选 profile 决定。成功后一次性输出 `clean.png`、`final.png` 和包含
+BubbleState、阶段 backend/耗时及相对 artifact 名称的 `page.json`；失败时不会创建目标输出目录。
+该 CLI 不导入 Flask/Vue，也不把完整流水线重新塞进某个模型 adapter。

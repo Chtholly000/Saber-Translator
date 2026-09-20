@@ -84,10 +84,12 @@ python -m tools.check_pipeline_config --plugins-config pipeline_plugins/mtu.exam
 ```sh
 python -m tools.extract_text --image page.png --output text.json --plugins-config pipeline.json --profile my_ocr_pipeline
 python -m tools.typeset --image blank.png --layout captions.json --output lettered.png --plugins-config pipeline.json --profile my_renderer_pipeline
+python -m tools.translate_page --image page.png --output-dir result --config remote.json --plugins-config pipeline.json --profile my_full_pipeline
 ```
 
 `my_renderer_pipeline` 是你在配置中声明、包含自定义 render 的方案。只嵌字不会初始化
-检测、OCR 或翻译插件。以上输出必须是新文件。
+检测、OCR 或翻译插件。完整 CLI 直接按 profile 调用六个独立端口并生成去字图、成品图和
+BubbleState JSON；它不启动 Flask/Vue。以上输出必须是新文件或不存在的新目录。
 
 ## 插件 v1 的进程内契约
 

@@ -1,7 +1,7 @@
 # 源码开发与启动
 
 状态：`CURRENT`。本文只描述这个 fork 当前源码树的本地开发、离线验证和启动行为。
-它不作为持续云健康检查；已完成的单页 Modal 检测/OCR 验证与未验证边界以
+它不作为持续云健康检查；已完成的单页 Modal 阶段和无界面出图验证与未验证边界以
 `workers/mtu/README.md` 为准，Oracle 部署仍未完成。
 
 ## 先知道你启动的是什么
@@ -164,6 +164,24 @@ python -m flask --app app run --host 127.0.0.1 --port 5000
 旧的整套 MTU/DeepSeek 组合使用 `SABER_REMOTE_CONFIG`，可再由 `SABER_PIPELINE_CONFIG`
 继承或覆盖单个阶段。配置文件只能记录非秘密选项和密钥环境变量名，不能提交真实密钥。
 
+### 不启动浏览器直接生成成品
+
+完整自动处理不依赖 Vue。选择一个已配置的完整 profile 后，可直接运行：
+
+```sh
+python -m tools.translate_page \
+  --image page.png \
+  --output-dir result-page \
+  --config remote-config.json \
+  --profile modal_mtu_deepseek \
+  --inpaint-method lama_mpe
+```
+
+运行前应由当前运营环境把 `DEEPSEEK_API_KEY` 注入该进程；不能把值写进配置、命令行、Shell
+历史、Git 或文档。命令成功后生成 `clean.png`、`final.png`、`page.json`。目标目录已存在时
+命令拒绝覆盖；任一步失败时不发布目标目录。可用 `--plugins-config` 继承或替换任意一个阶段。
+默认 mask 膨胀 10px、框扩展 20%，与浏览器当前默认值一致；可通过相应参数按固定样图调优。
+
 ## 6. 从零验证顺序
 
 以下顺序把“文档正确”“组合逻辑正确”“界面能构建”“本地/云模型真实可用”分开证明：
@@ -173,6 +191,7 @@ python tools/validate_docs.py
 python -m unittest tests_backend.test_pipeline_plugins
 python -m unittest tests_backend.test_pipeline_profiles tests_backend.test_stage_backend_registry
 python -m unittest tests_backend.test_remote_pipeline tests_backend.test_mtu_worker_adapter
+python -m unittest tests_backend.test_page_pipeline tests_backend.test_typeset_client
 cd vue-frontend
 npm run typecheck
 npm run test

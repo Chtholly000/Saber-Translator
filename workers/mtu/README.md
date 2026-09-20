@@ -1,10 +1,10 @@
 # MTU Worker and independent clients
 
 Status: CURRENT implementation. The Modal image was deployed and one public
-vertical-page detect/OCR smoke test passed on 2026-09-19. The four OCR strings
-from that page also passed an isolated live DeepSeek translation smoke test on
-2026-09-20. Color, inpaint, the combined Flask/browser flow, Oracle deployment
-and a broad model-quality suite are NOT verified.
+vertical-page detect/OCR smoke test passed on 2026-09-19; color and inpaint were
+called on the same page on 2026-09-20. The four OCR strings also passed an
+isolated live DeepSeek translation smoke test. The combined Flask/browser flow,
+Oracle deployment and a broad model-quality suite are NOT verified.
 
 ## Composition
 
@@ -116,9 +116,9 @@ The request used the default detector at detection size 1536 followed by the MTU
 
 This proves deployed-class lookup, L4 startup, weight download, detector,
 textline merge, PNG mask transport and 48px OCR for that one page. It does not
-prove general recognition quality, all document orientations, color extraction,
-inpainting, the complete Flask/browser flow, persistent model caching or Oracle
-readiness.
+prove general recognition quality, all document orientations, the complete
+Flask/browser flow, persistent model caching or Oracle readiness. Color and
+inpaint were subsequently exercised as part of the headless page run below.
 
 ### Live DeepSeek translation smoke test (2026-09-20)
 
@@ -133,6 +133,26 @@ This proves the current official endpoint/model combination and the adapter's
 ID-preserving live request/response path for one small batch. It does not prove
 translation quality at scale, retry/rate-limit behavior, the combined Modal plus
 DeepSeek pipeline, browser writeback or Oracle deployment.
+
+### Headless page artifact smoke test (2026-09-20)
+
+`tools.translate_page` processed the same public page without Flask, Vue or a
+browser. One run called the deployed Modal detector (14.699 s), 48px OCR
+(24.549 s), color extractor (17.105 s) and lama_mpe inpainter (43.040 s), then
+the real local Saber renderer (0.056 s). The translation plugin replayed the four
+results from the isolated live DeepSeek call above because that run's temporary
+key was no longer available; this was not a second live API request.
+
+The published directory contained a same-size `clean.png`, `final.png` and
+`page.json` with four BubbleState records and per-stage provenance. Original to
+clean changed 708,420 pixels; clean to final changed 274,778 pixels. Visual
+inspection found conspicuous residual Japanese glyphs after inpainting and one
+translation extending outside its bubble. This proves stage composition and
+actual image writeback, not acceptable output quality or a fresh single-run
+Modal-plus-DeepSeek chain. That archived run used the prototype's 5 px mask
+dilation and 0% box expansion. The CLI defaults were subsequently aligned with
+the browser's 10 px/20% defaults; the tuned result has not yet passed a visual
+quality fixture.
 
 ## Independent clients
 
@@ -184,6 +204,7 @@ check is recorded separately above. Fixtures cover reversed/missing IDs, rotated
 geometry, empty OCR, image/mask sizes, credential isolation, brush-only repair,
 no local GPU fallback, and blank-image rendering with the real Saber renderer.
 The single live vertical-page smoke test above adds a real GPU compatibility
-check, but does not establish general model quality. Before production-like use,
-run horizontal, rotated, empty-page and complex-background fixtures on the pinned
-models and separately exercise color and inpaint.
+check for all four MTU stages, but does not establish general model quality.
+Before production-like use, run horizontal, rotated, empty-page and
+complex-background fixtures on the pinned models and tune/compare inpainting
+masks against the fixed visual fixtures.

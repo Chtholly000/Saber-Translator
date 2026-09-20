@@ -56,7 +56,8 @@ IoU 匹配既有气泡；检测不到的人工锁定气泡仍保留，用户必�
 `inpainter_backend` 与 `renderer_backend`。过渡期内 detect/OCR 仍接受旧 `extraction_backend`；它与
 阶段专用名同时出现且不一致时必须是请求错误，不能猜测或回退。`local_saber` 永远内置；仅当
 `SABER_REMOTE_CONFIG` 装配成功时才会注册 `modal_mtu_deepseek`。该 profile 的存在表示代码和
-非秘密配置可用，并不宣称 Modal 镜像、权重或 GPU 推理已经通过实测。
+非秘密配置可用，本身并不构成云健康检查；实际 Modal/DeepSeek 冒烟边界另行记录在
+`workers/mtu/README.md`。
 
 `SABER_PIPELINE_CONFIG`（schema_version 1）也可声明六阶段插件及新 profile，并继承现有方案
 只覆盖某一步。配置在进程启动时验证，工厂在第一次执行时才导入；接口和输出类型以
@@ -73,6 +74,22 @@ IoU 匹配既有气泡；检测不到的人工锁定气泡仍保留，用户必�
 浏览器根据所选方案中 OCR/translate 的实际阶段名决定是否发送旧本地模型设置，不能以
 profile 是否叫 local_saber 判断所有步骤的位置。自定义 OCR/翻译插件仅接收业务输入，
 路由不会转发浏览器保存的供应商凭据/地址。自定义 render 自行实现自动字号，避免绑定本地排版算法。
+
+### CURRENT：无界面整页运行
+
+`src/core/page_pipeline.py` 使用同一 profile 和六阶段 registry 在 Python 进程内执行完整页面，
+不经过 Flask 或 Vue。它仍保持本文件的不变量：检测数组必须等长、OCR/翻译必须与区域一一对应、
+mask/clean/final 必须保持原图尺寸，任何不对齐都会在 inpaint/render 前失败。
+
+`tools/translate_page.py` 是其文件适配器。目标输出目录必须不存在；全部阶段成功后才原子发布：
+
+- `clean.png`：去字后的同尺寸背景图；
+- `final.png`：嵌入译文后的同尺寸成品图；
+- `page.json`：`bubbleStateContractVersion: 1`、profile、各阶段 backend/耗时、相对 artifact 名称和
+  `bubble_states`。
+
+这个 `page.json` 是可继续交给 `tools/typeset.py` 或浏览器导入的本地运行结果，不等同于尚未实施的
+跨设备 project/page revision schema。核心编排器不写页面存储，也不会绕过人工锁去覆盖既有页面。
 
 ## TARGET：持久工程文档
 
@@ -165,8 +182,9 @@ detection dict、`OcrResult`、颜色数组或 PNG，绝不返回 MTU `TextBlock
 Mask 与输入图片的宽高必须完全一致。缺失/重复/未知 OCR ID、错误 stage、错误契约版本、越界坐标、
 错误图片格式或敏感调用方凭据都会导致契约错误；这些不是可静默 fallback 的情形。该契约已由离线
 Worker dispatcher fixture 覆盖，并以一张公开 3065×4096 竖排样图完成真实 Modal detector +
-48px OCR 调用，返回四个区域、同尺寸文字蒙版与四个 ID 对齐结果。该单页冒烟测试不覆盖
-color/inpaint，也不是横排、旋转、空页和复杂背景的品质证明。
+48px OCR 调用，返回四个区域、同尺寸文字蒙版与四个 ID 对齐结果。随后同页通过相同契约实际调用
+color 和 lama_mpe inpaint；取色返回四个 ID 对齐结果，修补返回同尺寸 PNG。该单页冒烟不是横排、
+旋转、空页和复杂背景的品质证明，且修补图仍有明显残字。
 
 ### translate
 
@@ -190,6 +208,13 @@ color/inpaint，也不是横排、旋转、空页和复杂背景的品质证明�
 输入：clean/original image artifact、完整气泡状态、字体资源引用和渲染配置。
 
 输出：rendered artifact 与规范化气泡状态。手动嵌字路径允许没有 detect/OCR/translate 结果。
+
+2026-09-20 的无界面整页验证在上述公开样图上实际执行 Modal detect、48px OCR、color、
+lama_mpe inpaint 与 Saber 本地 render。为避免再次索取已不在进程中的专用密钥，translate 阶段
+回放同日独立真实 DeepSeek 调用的四条结果；因此这次运行不能描述成新的端到端 DeepSeek 请求。
+输出的 `clean.png` 相对原图变化 708,420 个像素，`final.png` 相对 clean 图变化 274,778 个像素，
+证明真实图片擦除和嵌字写回已经发生。肉眼检查同时发现明显残字与一处译文越出气泡，故该结果只
+证明六阶段组合、文件发布和像素写回，不是质量验收。
 
 ## 任务与重试
 

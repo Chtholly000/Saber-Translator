@@ -8,6 +8,7 @@
 | --- | --- | --- | --- | --- |
 | Vue 浏览器客户端与状态 | `vue-frontend/src/` | 用户交互、即时预览、当前页面编辑状态 | 版本化 API 类型、领域字段 | 模型加载、云凭据、服务器文件路径 |
 | 流水线编排 | `vue-frontend/src/composables/translation/core/` | 步骤顺序、模式、页面上下文投影 | 原子步骤客户端、稳定领域类型 | 具体 OCR/GPU SDK |
+| 无界面整页编排 | `src/core/page_pipeline.py`、`tools/translate_page.py` | 固定完整步骤顺序、profile 解析、BubbleState 组装、文件产物导出 | 阶段端口/注册表、领域类型、惰性本地 handler | Flask/Vue、供应商 SDK、书架写入、凭据持久化 |
 | Flask 路由 | `src/app/api/` | HTTP 验证、错误映射、调用应用服务 | 端口/服务、序列化器 | 模型实现细节、长期任务状态 |
 | 领域状态 | `src/core/config_models.py`、前端类型 | 气泡文字、几何、样式、OCR 元数据 | 纯数据类型 | Flask、Modal、MTU、数据库客户端 |
 | 当前算法实现 | `src/core/detection.py`、`ocr.py`、`inpainting.py`、`rendering.py`、`translation.py` | Saber 现有本地行为 | 领域类型、模型接口 | UI/书架所有权 |
@@ -40,6 +41,9 @@ Saber 的稳定结果类型后再交给上层。
 浏览器 Vue、MTU Qt 或将来的命令行批处理器都是**展示/控制客户端**，不是 pipeline stage
 或后端适配器。它们可以调用同一任务/API 契约并各自决定怎样显示、批量提交或预览；不能把
 自己的组件状态、窗口对象或 MTU `TextBlock` 变成项目真相。
+
+`page_pipeline.py` 是应用层编排而不是新 adapter：它只解析一个完整 profile，然后通过六个
+registry 调用端口。CLI 负责把结果原子写入新目录；核心编排器不接受输出路径，也不写书架。
 
 ## 阶段端口
 
