@@ -24,7 +24,7 @@
     {
       "stage": "translate", "name": "deepseek_api",
       "factory": "src.core.pipeline_plugins.factories:deepseek",
-      "options": {"model": "deepseek-chat", "api_key_env": "DEEPSEEK_API_KEY"}
+      "options": {"model": "deepseek-flash", "api_key_env": "DEEPSEEK_API_KEY"}
     },
     {
       "stage": "inpaint", "name": "mtu_inpaint",

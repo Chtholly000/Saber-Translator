@@ -892,7 +892,7 @@ if __name__ == '__main__':
     test_model_sf = "alibaba/Qwen1.5-14B-Chat"
 
     test_api_key_ds = os.environ.get("TEST_DEEPSEEK_API_KEY", None)
-    test_model_ds = "deepseek-chat"
+    test_model_ds = "deepseek-flash"
 
     test_api_key_volcano = os.environ.get("TEST_VOLCANO_API_KEY", None)
     test_model_volcano = "deepseek-v3-250324"

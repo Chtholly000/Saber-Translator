@@ -174,6 +174,11 @@ color/inpaint，也不是横排、旋转、空页和复杂背景的品质证明�
 
 输出：按 ID 对应的译文、警告和 provider/model provenance。适配器不得返回或记录 API Key。
 
+2026-09-20 的独立实际调用将上述 Modal 冒烟产生的四条日文 OCR 文本交给
+`deepseek-flash`，2.029 秒内得到四条非空简体中文结果，ID 与输入保持一一对应。调用使用显式
+关闭 thinking 的 JSON 模式，密钥只从进程环境读取。该结果不覆盖批量页面、自动重试、限流、
+浏览器写回或整条 Modal + DeepSeek 链路。
+
 ### inpaint
 
 输入：原图 artifact、regions、用户 mask/模型 mask、修复配置。

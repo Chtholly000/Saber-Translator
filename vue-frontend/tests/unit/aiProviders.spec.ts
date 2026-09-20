@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   AI_PROVIDER_MANIFEST,
+  getProviderBaseUrl,
   getProviderOptionsForCapability,
   getProviderDefaultModel,
   providerSupportsRpmLimit,
@@ -46,6 +47,8 @@ describe('translation page AI provider manifest', () => {
   it('keeps frontend default chat models aligned with the shared manifest contract', () => {
     expect(getProviderDefaultModel('openai', 'chat')).toBe('gpt-4o')
     expect(getProviderDefaultModel('qwen', 'chat')).toBe('qwen-plus')
+    expect(getProviderDefaultModel('deepseek', 'chat')).toBe('deepseek-flash')
+    expect(getProviderBaseUrl('deepseek')).toBe('https://api.deepseek.com')
   })
 
   it('treats gpt2api as a base-url-driven image generation adapter', () => {

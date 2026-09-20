@@ -41,11 +41,12 @@ Flask 应用
 `local_saber`，其 detect / OCR / translate / inpaint / render 都选 `local`。
 显式提供 `SABER_REMOTE_CONFIG` 后还会注册 `modal_mtu_deepseek`：检测/OCR/取色/修复使用
 MTU Worker，翻译使用 DeepSeek 官方 API，渲染使用 Saber CPU。配置可用不等于整条远程
-组合已实测；目前只有所附 MTU Worker 的检测/OCR 在一张公开竖排样图上通过真实 Modal GPU 验证。
+组合已实测；所附 MTU Worker 的检测/OCR 已在一张公开竖排样图上通过真实 Modal GPU 验证，
+同一批四条 OCR 文字也已通过独立的 DeepSeek 实际翻译调用，但两段尚未串成一次浏览器任务。
 五个主 API 以及可选 color API 都会通过 profile 解析后端；六阶段使用 `stage_backends/` 中
 各自独立的 registry，OCR 插件不要求实现检测。`extraction_backends/` 是旧注册的兼容桥；detect/OCR 保留旧的
-`extraction_backend` 参数作为过渡。Flask 仍同步等待结果；这不代表 DeepSeek、修复、浏览器整链
-或远程任务协议已经部署验证。具体能力与验证边界见 `workers/mtu/README.md`。
+`extraction_backend` 参数作为过渡。Flask 仍同步等待结果；这不代表修复、浏览器整链或远程任务
+协议已经部署验证。具体能力与验证边界见 `workers/mtu/README.md`。
 
 Vue 是当前浏览器客户端，不是自动流水线的所有者。它可以被另一客户端（例如批处理客户端）
 替换，只要后者遵守任务/API 和持久化契约；MTU 的 Qt 界面也不能直接当作 Saber 客户端嵌入。
@@ -58,8 +59,9 @@ Vue 是当前浏览器客户端，不是自动流水线的所有者。它可以�
 MTU Worker v2 契约覆盖检测/OCR/取色/修复。`workers/mtu/runtime.py` 已实现对固定 MTU 窄模块的
 调用和字段转换，`modal_worker_client.py` 提供惰性的认证 SDK client；独立部署定义已通过 SDK
 构建并部署，固定版本 detector 与 48px OCR 已在 Modal L4 上用一张 3065×4096 竖排样图
-完成真实调用。该验证不覆盖取色、修复、DeepSeek、完整浏览器链路或广泛模型品质。原子路由的
-本地模型导入已延迟，但完整 app.py 仍包含旧的重型依赖，不能宣称 Oracle 轻量部署包已经完成。
+完成真实调用。DeepSeek 是独立阶段，已用该页产生的四条 OCR 文字完成一次真实调用；这仍不覆盖
+取色、修复、完整浏览器链路或广泛模型品质。原子路由的本地模型导入已延迟，但完整 app.py 仍
+包含旧的重型依赖，不能宣称 Oracle 轻量部署包已经完成。
 
 `SABER_PIPELINE_CONFIG` 可声明六阶段的独立执行插件，并用 profile 继承只替换其中一步。
 `src/core/pipeline_plugins/` 负责配置检查、工厂惰性导入、实例复用、串行调用、输出检查和关闭。

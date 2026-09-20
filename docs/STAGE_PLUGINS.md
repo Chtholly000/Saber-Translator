@@ -1,8 +1,9 @@
 # 处理阶段插件
 
 状态：`CURRENT`。配置加载、六阶段替换和浏览器/CLI 接入已用离线测试验证；所附 MTU
-Modal detector + 48px OCR 另以一张公开竖排样图通过真实 GPU 冒烟测试。该结果不自动证明
-其他插件、其他 MTU 阶段或完整远程流水线可用。
+Modal detector + 48px OCR 另以一张公开竖排样图通过真实 GPU 冒烟测试，该页的四条 OCR
+文字也通过所附 DeepSeek 翻译插件完成独立实际调用。两项局部验证不自动证明其他插件、
+其他 MTU 阶段或完整远程流水线可用。
 
 ## 设计与范围
 
@@ -65,8 +66,9 @@ before/after 中间件，继续包围阶段调用；两种插件可以并存。
 
 `pipeline_plugins/mtu.example.json` 独立配置检测、两种 OCR、取色、翻译和修补。
 其中 `modular_mtu` 使用 48px，`modular_mtu_mocr` 只覆盖 OCR 为 mocr，其他阶段相同。
-它使用现有 Modal Worker 配方和 DeepSeek adapter，没有复制 MTU 源代码。
-真正执行这些方案需要已部署 Worker 和运营者自己的凭据。
+它使用现有 Modal Worker 配方和 DeepSeek adapter，没有复制 MTU 源代码。当前示例选择
+`deepseek-flash`，只记录环境变量名 `DEEPSEEK_API_KEY`，不在 JSON 中保存密钥。该 adapter
+已通过一次四条文本的直接实际调用；真正执行完整方案仍需要已部署 Worker 和运营者自己的凭据。
 
 配置检查不会导入插件模块、加载模型或调用服务：
 

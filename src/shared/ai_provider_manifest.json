@@ -20,7 +20,7 @@
     "id": "deepseek",
     "label": "DeepSeek",
     "kind": "openai_compatible",
-    "defaultBaseUrl": "https://api.deepseek.com/v1",
+    "defaultBaseUrl": "https://api.deepseek.com",
     "capabilities": ["translation", "hqTranslation", "modelFetch", "connectionTest", "pluginAgent", "vlm", "chat", "embedding", "rerank", "webImportAgent"],
     "requiresApiKey": true,
     "requiresModel": true,
@@ -29,11 +29,11 @@
     "supportsStream": true,
     "supportsJsonResponse": true,
     "defaultModels": {
-      "vlm": "deepseek-chat",
-      "chat": "deepseek-chat"
+      "vlm": "deepseek-flash",
+      "chat": "deepseek-flash"
     },
     "modelCatalogs": {
-      "vlm": ["deepseek-chat"]
+      "vlm": ["deepseek-flash", "deepseek-v4-pro"]
     }
   },
   {

@@ -1,8 +1,10 @@
 # MTU Worker and independent clients
 
 Status: CURRENT implementation. The Modal image was deployed and one public
-vertical-page detect/OCR smoke test passed on 2026-09-19. DeepSeek, color,
-inpaint, Oracle deployment and a broad model-quality suite are NOT verified.
+vertical-page detect/OCR smoke test passed on 2026-09-19. The four OCR strings
+from that page also passed an isolated live DeepSeek translation smoke test on
+2026-09-20. Color, inpaint, the combined Flask/browser flow, Oracle deployment
+and a broad model-quality suite are NOT verified.
 
 ## Composition
 
@@ -42,11 +44,14 @@ still uses its existing separately configured API path.
 ## Configuration
 
 Start from `config.example.json` and set the operator's deployed Modal app name,
-MTU model options and desired DeepSeek model. The file accepts no API keys or
-arbitrary HTTP destination. `api_key_env` names a server environment variable;
-the translation adapter resolves its value only at execution and sends only
-texts/prompt to DeepSeek. The Modal SDK uses its standard operator credentials;
-neither provider's credentials enter Worker payloads or browser profile discovery.
+MTU model options and desired DeepSeek model. The current example uses
+`deepseek-flash` at `https://api.deepseek.com`, disables thinking for this bounded
+JSON translation request, and expects the key in server environment variable
+`DEEPSEEK_API_KEY`. The file accepts no API keys or arbitrary HTTP destination.
+`api_key_env` only names that environment variable; the adapter resolves its value
+at execution and sends only texts/prompt to DeepSeek. The Modal SDK uses its
+standard operator credentials; neither provider's credentials enter Worker
+payloads or browser profile discovery.
 
 Set `SABER_REMOTE_CONFIG` to the non-secret configuration file when starting the
 existing Saber app. No configuration means no remote profile. Registration itself
@@ -112,8 +117,22 @@ The request used the default detector at detection size 1536 followed by the MTU
 This proves deployed-class lookup, L4 startup, weight download, detector,
 textline merge, PNG mask transport and 48px OCR for that one page. It does not
 prove general recognition quality, all document orientations, color extraction,
-inpainting, DeepSeek translation, the complete Flask/browser flow, persistent
-model caching or Oracle readiness.
+inpainting, the complete Flask/browser flow, persistent model caching or Oracle
+readiness.
+
+### Live DeepSeek translation smoke test (2026-09-20)
+
+The DeepSeek stage adapter was called directly with the same four public Japanese
+OCR strings produced by the GPU smoke test, targeting Simplified Chinese with
+`deepseek-flash`. It returned four non-empty translations aligned to the original
+stable IDs in 2.029 seconds. The request used non-streaming JSON mode with thinking
+disabled; the dedicated key was supplied only through the process environment and
+was not placed in configuration, payloads, logs or the browser.
+
+This proves the current official endpoint/model combination and the adapter's
+ID-preserving live request/response path for one small batch. It does not prove
+translation quality at scale, retry/rate-limit behavior, the combined Modal plus
+DeepSeek pipeline, browser writeback or Oracle deployment.
 
 ## Independent clients
 
@@ -155,12 +174,13 @@ layout capability.
 ## Verification
 
 ```sh
-python -m unittest tests_backend.test_pipeline_plugins tests_backend.test_remote_pipeline tests_backend.test_typeset_client tests_backend.test_mtu_worker_adapter tests_backend.test_pipeline_profiles tests_backend.test_stage_backend_registry tests_backend.test_extraction_backend_boundary
+python -m unittest tests_backend.test_deepseek_adapter tests_backend.test_pipeline_plugins tests_backend.test_remote_pipeline tests_backend.test_typeset_client tests_backend.test_mtu_worker_adapter tests_backend.test_pipeline_profiles tests_backend.test_stage_backend_registry tests_backend.test_extraction_backend_boundary
 ```
 
 Fixtures execute real Flask handlers, real adapters, the Worker dispatcher and
 actual vendor-object normalization using injected model dispatch functions. The
-DeepSeek HTTP transport is mocked. They cover reversed/missing IDs, rotated
+repeatable test suite mocks DeepSeek HTTP transport; the bounded live adapter
+check is recorded separately above. Fixtures cover reversed/missing IDs, rotated
 geometry, empty OCR, image/mask sizes, credential isolation, brush-only repair,
 no local GPU fallback, and blank-image rendering with the real Saber renderer.
 The single live vertical-page smoke test above adds a real GPU compatibility

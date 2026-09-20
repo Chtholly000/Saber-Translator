@@ -5,5 +5,5 @@
     "ocr": {"ocr": "48px"},
     "inpaint": {"inpainter": "lama_mpe", "inpainting_size": 1024}
   },
-  "translation": {"model": "deepseek-chat", "api_key_env": "DEEPSEEK_API_KEY"}
+  "translation": {"model": "deepseek-flash", "api_key_env": "DEEPSEEK_API_KEY"}
 }
