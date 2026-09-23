@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -260,6 +261,29 @@ class NativeMtuPageEngineTests(unittest.TestCase):
         self.assertEqual(len(translator.calls[0][0]), 5)
         self.assertEqual(len(results), 5)
 
+    def test_missing_deepseek_key_stops_before_gpu_for_single_and_batch(self):
+        client = _WorkerClient()
+        configure_native_mtu_page_engine({
+            "worker": {"app_name": "fixture", "class_name": "Fixture"},
+            "page": {},
+            "translation": {
+                "backend": "deepseek",
+                "model": "deepseek-flash",
+                "api_key_env": "SABER_TEST_NATIVE_DEEPSEEK_KEY",
+                "target_language": "CHS",
+            },
+        }, worker_client=client)
+        engine = create_page_engine("mtu_native")
+        image = Image.new("RGB", (4, 4), "white")
+
+        with mock.patch.dict("os.environ", {"SABER_TEST_NATIVE_DEEPSEEK_KEY": ""}):
+            with self.assertRaisesRegex(ValueError, "SABER_TEST_NATIVE_DEEPSEEK_KEY"):
+                engine.execute(image)
+            with self.assertRaisesRegex(ValueError, "SABER_TEST_NATIVE_DEEPSEEK_KEY"):
+                engine.execute_batch([image, image])
+
+        self.assertEqual(client.calls, [])
+
     def test_agent_cli_import_is_lazy(self):
         process = subprocess.run(
             [
@@ -274,6 +298,42 @@ class NativeMtuPageEngineTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(process.returncode, 0, process.stderr)
+
+    def test_agent_cli_rejects_missing_key_without_starting_worker(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            image = root / "page.png"
+            Image.new("RGB", (4, 4), "white").save(image)
+            config = root / "config.json"
+            config.write_text(json.dumps({
+                "worker": {"app_name": "nonexistent-smoke-worker"},
+                "translation": {
+                    "backend": "deepseek",
+                    "model": "deepseek-flash",
+                    "api_key_env": "SABER_TEST_NATIVE_DEEPSEEK_KEY",
+                    "target_language": "CHS",
+                },
+            }), encoding="utf-8")
+            output = root / "result"
+            environment = dict(os.environ)
+            environment.pop("SABER_TEST_NATIVE_DEEPSEEK_KEY", None)
+            process = subprocess.run(
+                [
+                    sys.executable,
+                    "-m", "tools.translate_page_native",
+                    "--image", str(image),
+                    "--output-dir", str(output),
+                    "--config", str(config),
+                ],
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(process.returncode, 2, process.stderr)
+            self.assertIn("SABER_TEST_NATIVE_DEEPSEEK_KEY", process.stderr)
+            self.assertNotIn("Traceback", process.stderr)
+            self.assertFalse(output.exists())
 
     def test_agent_cli_atomically_writes_multi_page_batch(self):
         from tools import translate_page_native

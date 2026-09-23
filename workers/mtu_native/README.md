@@ -46,6 +46,9 @@ The Modal worker has no DeepSeek Secret and never calls a translation API.
 `DEEPSEEK_API_KEY` belongs to the control process environment (later the
 Oracle secret boundary). Do not place its value in JSON, command arguments,
 Git, task artifacts, or chat.
+The native page engine checks the selected translator's readiness before any
+Modal extraction call. With DeepSeek selected, a missing key fails immediately
+instead of spending GPU time and failing only after OCR.
 
 Deploying the image worker is a deliberate external action:
 

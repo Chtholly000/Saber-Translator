@@ -68,6 +68,10 @@ def main() -> None:
 
     configure_native_mtu_page_engine(_load_json(args.config))
     engine = create_page_engine("mtu_native")
+    try:
+        engine.check_ready()
+    except ValueError as exc:
+        parser.error(str(exc))
     sources = []
     for path in args.image:
         with Image.open(path) as source:

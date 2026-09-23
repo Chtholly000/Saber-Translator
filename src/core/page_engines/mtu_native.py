@@ -46,6 +46,11 @@ class NativeMtuPageEngine:
             if group in self._options
         }
 
+    def check_ready(self) -> None:
+        check_ready = getattr(self._translator, "check_ready", None)
+        if callable(check_ready):
+            check_ready()
+
     def extract_page(self, image: Image.Image) -> dict[str, Any]:
         request = build_native_mtu_extract_request(
             image,
@@ -190,6 +195,7 @@ class NativeMtuPageEngine:
     def execute(self, image: Image.Image, **overrides: Any) -> PageEngineResult:
         if overrides:
             raise ValueError("原生 MTU 整页参数只能由服务器配置，不能由请求覆盖")
+        self.check_ready()
         extraction = self.extract_page(image.convert("RGB"))
         translations = self.translate_regions(extraction["extraction_document"])
         rendered = self.render_page(extraction, translations)
@@ -212,6 +218,7 @@ class NativeMtuPageEngine:
         sources = [image.convert("RGB") for image in images]
         if not sources:
             return []
+        self.check_ready()
         identified = [
             (f"page-{index:06d}", image)
             for index, image in enumerate(sources)
