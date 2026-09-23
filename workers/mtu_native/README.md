@@ -145,3 +145,12 @@ This proves visible translated-string writeback, but the strings were supplied
 explicitly rather than by DeepSeek because no API key was present in the
 control environment. Broader fixtures, API translation quality, and a
 persistent deployed-app health check remain separate work.
+
+On 2026-09-23, two denser manga pages exposed an angled-region seam bug in the
+old wrapper. After restoring MTU's live line orientation during rehydration,
+the repaired split path matched a continuous pinned MTU controller exactly
+for clean, mask and final images on both pages (20 and 16 regions, two angled
+regions each). The existing Modal app was updated, and the headless CLI then
+completed one of those pages with a real DeepSeek translation call and no
+runtime warnings. Visual quality remains limited by missed handlettering,
+small-text OCR, vertical Latin layout and translation phrasing.

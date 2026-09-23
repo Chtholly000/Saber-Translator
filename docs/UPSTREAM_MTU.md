@@ -88,6 +88,11 @@ inpaint 和原生 render。最终 PNG 与不跨进程的原生 translation-seam 
 原版与旧包装在两张含倾斜文字的页面上 mask/final 不同，无倾斜区域的一页则逐像素相同。
 同次 OCR 的诊断分支只保留原始 `TextBlock.lines`，两张受影响页面的 clean/mask/final
 均恢复为逐像素相同。修复因此只针对上述坐标映射，不改 MTU 算法、译文或对外 v3 协议。
+修复提交随后在隔离 Modal L4 上用同两页再次对照：20 与 16 个区域中各有 2 个倾斜区域，
+经修复的分段路径相对连续原版在 clean/mask/final 三种产物上均为 0 差异像素。
+现有 Modal 应用更新后，正式无界面 CLI 又以 DeepSeek 实际翻译其中一页并生成三种图片；
+16 个区域、0 运行警告。该验证证明接缝和部署回归，不表示漏识别的手写字、拟声词、
+小字号 OCR 或中英混排质量已通过验收。
 2026-09-21 的 v3 契约在不改变上述单页半程的前提下增加 `extract_pages` / `render_pages`：
 一次 Worker 调用顺序处理 1～8 页，控制端只调用一次 Translator。除离线 fixture 外，同日已把
 v3 Worker 部署到 Modal L4，并以两张公开 3066×4096、3065×4096 页面完成一次真实
