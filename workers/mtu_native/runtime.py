@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
+import math
 from types import SimpleNamespace
 from typing import Any, Mapping
 
@@ -183,7 +184,7 @@ class NativeMtuControllerAdapter:
         target_lang: str | None,
     ):
         data = dict(native)
-        data.pop("center", None)
+        center = data.pop("center", None)
         if "fg_colors" in data:
             data["fg_color"] = tuple(data.pop("fg_colors"))
         if "bg_colors" in data:
@@ -195,6 +196,32 @@ class NativeMtuControllerAdapter:
             lines = lines.reshape(1, 4, 2)
         if lines.ndim != 3 or lines.shape[1:] != (4, 2):
             raise MtuWorkerContractError("MTU native TextBlock lines 形状无效")
+        try:
+            angle = float(data.get("angle", 0) or 0)
+        except (TypeError, ValueError) as error:
+            raise MtuWorkerContractError("MTU native TextBlock angle 无效") from error
+        if not np.isfinite(angle) or not np.all(np.isfinite(lines)):
+            raise MtuWorkerContractError("MTU native TextBlock 几何坐标无效")
+        if angle:
+            try:
+                pivot = np.asarray(center, dtype=np.float64)
+            except (TypeError, ValueError) as error:
+                raise MtuWorkerContractError(
+                    "倾斜 MTU 区域缺少有效 center"
+                ) from error
+            if pivot.shape != (2,) or not np.all(np.isfinite(pivot)):
+                raise MtuWorkerContractError("倾斜 MTU 区域缺少有效 center")
+            # Pinned MTU TextBlock.to_dict() counter-rotates its lines around
+            # center for project serialization. Restore the live geometry
+            # before resuming MTU's mask, inpainting and rendering stages.
+            radians = math.radians(angle)
+            cosine, sine = math.cos(radians), math.sin(radians)
+            x = lines[..., 0] - pivot[0]
+            y = lines[..., 1] - pivot[1]
+            lines = np.stack((
+                x * cosine - y * sine + pivot[0],
+                x * sine + y * cosine + pivot[1],
+            ), axis=-1)
         data["lines"] = lines
         texts = data.get("texts")
         if not isinstance(texts, list) or not texts:

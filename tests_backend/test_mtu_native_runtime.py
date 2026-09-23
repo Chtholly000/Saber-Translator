@@ -56,8 +56,28 @@ class _FakeTextBlock:
         }
 
 
+class _FakeRotatedTextBlock(_FakeTextBlock):
+    """MTU exports counter-rotated lines rather than its live lines."""
+
+    def __init__(self, **values):
+        super().__init__(**values)
+        self.lines = np.asarray(
+            [[[11, 9], [11, 11], [10, 11], [10, 9]]], dtype=np.float64
+        )
+
+    def to_dict(self):
+        data = super().to_dict()
+        data.update({
+            "lines": [[[9, 9], [11, 9], [11, 10], [9, 10]]],
+            "angle": 90,
+            "center": [10, 10],
+        })
+        return data
+
+
 class _FakeMangaTranslator:
     instances = []
+    block_factory = _FakeTextBlock
 
     def __init__(self, params):
         self.params = params
@@ -72,7 +92,7 @@ class _FakeMangaTranslator:
         return SimpleNamespace(
             img_rgb=np.array(image, dtype=np.uint8),
             mask_raw=np.full((image.height, image.width), 120, dtype=np.uint8),
-            text_regions=[_FakeTextBlock(
+            text_regions=[type(self).block_factory(
                 lines=[[[1, 1], [3, 1], [3, 3], [1, 3]]],
                 texts=["原文"],
             )],
@@ -80,6 +100,7 @@ class _FakeMangaTranslator:
 
     async def _complete_translation_pipeline(self, ctx, config):
         self.complete_calls += 1
+        self.received_lines = np.array(ctx.text_regions[0].lines, copy=True)
         ctx.mask = np.full(ctx.img_rgb.shape[:2], 255, dtype=np.uint8)
         ctx.img_inpainted = np.full_like(ctx.img_rgb, 180)
         rendered = await self._run_text_rendering(config, ctx)
@@ -95,6 +116,7 @@ class NativeMtuRuntimeTests(unittest.TestCase):
     def setUp(self):
         _FakeConfig.payloads = []
         _FakeMangaTranslator.instances = []
+        _FakeMangaTranslator.block_factory = _FakeTextBlock
         bindings = SimpleNamespace(
             Config=_FakeConfig,
             MangaTranslator=_FakeMangaTranslator,
@@ -163,6 +185,43 @@ class NativeMtuRuntimeTests(unittest.TestCase):
             decode_worker_png(render_response["final_image"]).getpixel((0, 0)),
             (40, 40, 40),
         )
+
+    def test_rotated_lines_round_trip_through_native_translation_seam(self):
+        _FakeMangaTranslator.block_factory = _FakeRotatedTextBlock
+        image = Image.new("RGB", (24, 24), "white")
+        extraction = normalize_native_mtu_extract_response(
+            asyncio.run(self.runtime.execute(
+                build_native_mtu_extract_request(image, {})
+            )),
+            image_size=image.size,
+        )
+        native = extraction["extraction_document"]["regions"][0]["native"]
+        self.assertEqual(native["lines"], [[[9, 9], [11, 9], [11, 10], [9, 10]]])
+
+        asyncio.run(self.runtime.execute(build_native_mtu_render_request(
+            extraction["working_image"],
+            extraction["raw_mask"],
+            extraction["extraction_document"],
+            {"region-0000": "译文"},
+            {},
+        )))
+        np.testing.assert_allclose(
+            _FakeMangaTranslator.instances[1].received_lines,
+            [[[11, 9], [11, 11], [10, 11], [10, 9]]],
+            atol=1e-12,
+        )
+
+    def test_rotated_lines_without_serialized_center_are_rejected(self):
+        with self.assertRaisesRegex(MtuWorkerContractError, "center"):
+            self.runtime.engine._rehydrate_region(
+                {
+                    "lines": [[[9, 9], [11, 9], [11, 10], [9, 10]]],
+                    "texts": ["原文"],
+                    "angle": 90,
+                },
+                translation="译文",
+                target_lang="CHS",
+            )
 
     def test_raw_worker_request_cannot_carry_secret(self):
         request = build_native_mtu_extract_request(Image.new("RGB", (2, 2)), {})

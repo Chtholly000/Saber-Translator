@@ -66,6 +66,9 @@ Agent page/batch request
 `workers/mtu_native/runtime.py` 只配置 MTU `Config` 并调用原生 controller 的预翻译和完成方法。
 它在接缝处完整序列化/重建 TextBlock，并在 MTU rendering 释放中间图前旁路复制 clean image 与
 refined mask；不替换检测、OCR、合并、mask、修补或排字算法。
+固定版本的 `TextBlock.to_dict()` 为工程文件将倾斜区域的 `lines` 绕其 `center` 反旋转，
+同时保留 `angle`；这些坐标不能直接当作运行中的原生多边形。
+完成 Worker 使用同一组 `angle`/`center` 将坐标转回后才构造 TextBlock。
 `src/core/native_mtu_page_contract.py` 拒绝请求内凭据、固定 MTU revision，并要求译文 ID 与区域 ID
 精确相等。DeepSeek 等翻译器在控制进程实现同一个 Translator 端口，密钥不进入 Modal。
 
@@ -81,6 +84,10 @@ refined mask；不替换检测、OCR、合并、mask、修补或排字算法。
 稳定 ID 区域，完整 TextBlock 字段跨过序列化边界后重建，并以已保存译文完成 mask、lama_mpe
 inpaint 和原生 render。最终 PNG 与不跨进程的原生 translation-seam 基准逐像素相同
 （12,554,240 个像素中差异为 0）。该验证没有调用 DeepSeek，也不代表其他模型或样图已经验收。
+2026-09-23 的三页复杂漫画对照发现这个旧样本没有覆盖的倾斜区域接缝错误：
+原版与旧包装在两张含倾斜文字的页面上 mask/final 不同，无倾斜区域的一页则逐像素相同。
+同次 OCR 的诊断分支只保留原始 `TextBlock.lines`，两张受影响页面的 clean/mask/final
+均恢复为逐像素相同。修复因此只针对上述坐标映射，不改 MTU 算法、译文或对外 v3 协议。
 2026-09-21 的 v3 契约在不改变上述单页半程的前提下增加 `extract_pages` / `render_pages`：
 一次 Worker 调用顺序处理 1～8 页，控制端只调用一次 Translator。除离线 fixture 外，同日已把
 v3 Worker 部署到 Modal L4，并以两张公开 3066×4096、3065×4096 页面完成一次真实

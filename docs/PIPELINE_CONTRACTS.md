@@ -18,6 +18,9 @@ provenance 为 `TARGET`。
 `TextBlock.to_dict()`。译文 ID 必须与区域 ID 精确相等；缺失、重复或额外 ID 在成图前失败。
 完成 Worker 把 native 字段重建为 MTU `TextBlock` 后调用原 controller 的 mask refinement、
 inpainting 和 rendering，不经过 `BubbleState`。
+固定 MTU 的 `to_dict()` 会为保存工程将倾斜区域 `lines` 反旋转；重建时必须用同一记录的
+`angle`/`center` 还原运行时坐标，再交给原生 mask/渲染。缺失或无效中心点的倾斜区域应失败，
+不能静默改变清字位置。该映射不改变 v3 字段或外部译文 ID 契约。
 
 `src/core/page_engines/` 在两次 Worker 调用之间执行注入的 Translator adapter。批量入口先以
 默认每组 4 页执行有界 GPU 提取，再把全部页面的文本展平成一次 Translator 调用，最后按相同

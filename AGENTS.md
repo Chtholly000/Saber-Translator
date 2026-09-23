@@ -51,9 +51,11 @@ Do not treat a `TARGET` or `PROPOSED` section as implemented behavior.  Verify
    contract, not merely return boxes and strings.
 3. Keep MTU `Context`, `Quadrilateral` and `TextBlock` semantics through
    both native halves. At the translation boundary serialize the complete
-   `TextBlock.to_dict()` payload plus a stable ID and raw mask; rehydrate that
-   payload before resuming MTU. `BubbleState` is an optional Saber-editor
-   projection, never the native intermediate state.
+   `TextBlock.to_dict()` payload plus a stable ID and raw mask. Pinned MTU
+   counter-rotates `lines` in `to_dict()`; rehydration must restore their live
+   orientation using its `angle` and `center` before resuming MTU.
+   `BubbleState` is an optional Saber-editor projection, never the native
+   intermediate state.
 4. The primary caller is an Agent, CLI or future job API. Vue is an optional
    inspection/editing client and must not be required for automatic output.
 5. Model/module choice and execution location are separate decisions. Changing

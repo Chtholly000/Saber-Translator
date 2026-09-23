@@ -12,6 +12,10 @@ Read the root `AGENTS.md`, `docs/ARCHITECTURE.md`, and
   raw mask; `render_page` and bounded `render_pages` rehydrate them, inject
   ID-matched translations,
   and resumes the original controller completion path.
+- Pinned MTU `TextBlock.to_dict()` counter-rotates angled `lines` for its
+  project format. The completion adapter must invert that transform using
+  the serialized `angle` and `center` before constructing a live TextBlock;
+  never feed those display/project coordinates into MTU mask or rendering.
 - Image-module choices map to the pinned MTU `Config` groups. Execution
   location (Modal) is separate from detector/OCR/inpainter/renderer selection.
 - Translation providers and credentials belong to the control plane, not this

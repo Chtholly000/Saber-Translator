@@ -114,6 +114,9 @@ MTU detection, OCR, merge, mask, inpaint or rendering algorithms.
 - Both calls reject credential-shaped fields and enforce the pinned MTU revision.
 - Complete `TextBlock.to_dict()` data crosses the pause and is rehydrated before
   MTU completion.
+- Pinned MTU stores angled `lines` counter-rotated in `to_dict()`; the adapter
+  restores live coordinates with the serialized `angle` and `center` before
+  mask refinement. This is a v3 mapping fix, not a new wire field or model.
 - Model and SDK imports remain lazy; importing the CLI does not load MTU or Modal.
 
 Offline tests prove the contract boundaries, not broad model quality or cloud
