@@ -2,6 +2,10 @@
 
 Read the root AGENTS.md and docs/UPSTREAM_MTU.md first, then README.md here.
 
+This directory owns only the staged/partial-processing worker. Full-page
+native-quality work belongs to `workers/mtu_native/`; do not expand this narrow
+worker into a second whole-page controller.
+
 - `runtime.py` is the only place that imports MTU stage implementations.
 - Use narrow detection/OCR/inpainting/merge dispatchers, never MangaTranslator.
 - Model names/options come from server configuration, not browser-local models.

@@ -1,0 +1,21 @@
+{
+  "worker": {
+    "app_name": "saber-mtu-native-f0307a0",
+    "class_name": "MtuNativeWorker"
+  },
+  "page": {
+    "ocr": {
+      "ocr": "48px"
+    },
+    "inpainter": {
+      "inpainter": "lama_mpe",
+      "inpainting_size": 1024
+    }
+  },
+  "translation": {
+    "backend": "deepseek",
+    "model": "deepseek-flash",
+    "api_key_env": "DEEPSEEK_API_KEY",
+    "target_language": "CHS"
+  }
+}

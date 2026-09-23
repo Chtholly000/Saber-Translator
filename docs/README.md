@@ -27,6 +27,7 @@
 | [UPSTREAM_MTU.md](./UPSTREAM_MTU.md) | MTU 固定版本、可复用能力、适配边界和升级检查 |
 | [STAGE_PLUGINS.md](./STAGE_PLUGINS.md) | 六阶段独立插件、配置安装/替换、模板、输入输出、生命周期与验证 |
 | [DEVELOPMENT_HISTORY.md](./DEVELOPMENT_HISTORY.md) | 历史：用户目标、实施经过与设计选择，不是当前运行指令 |
+| [../workers/mtu_native/README.md](../workers/mtu_native/README.md) | Agent 默认整页入口、MTU 提取/完成包装、控制端 Translator 与 Modal 部署边界 |
 | [../workers/mtu/README.md](../workers/mtu/README.md) | Worker 实现、远程配置、部署验证边界、只抽字/只嵌字客户端 |
 | [../AGENTS.md](../AGENTS.md) | 编码 Agent 的阅读顺序、改动纪律和验证要求 |
 | [../plugins/README.md](../plugins/README.md) | 原有 before/after 中间件插件用法；模型执行插件见 STAGE_PLUGINS |

@@ -6,15 +6,18 @@
 
 ## 先知道你启动的是什么
 
-本仓库同时包含三个不同层次，不能混在一起理解：
+本仓库同时包含四个不同层次，不能混在一起理解：
 
-1. `vue-frontend/` 是浏览器编辑器和自动流水线客户端。
-2. `app.py` 是 Flask 控制面、原子步骤 API、书架/会话存储和静态文件服务。
-3. 检测、OCR、取色、翻译、修补、嵌字通过阶段端口选择本地或显式配置的插件。
+1. `workers/mtu_native/` 与 `src/core/page_engines/` 是 Agent 完整自动翻译的默认边界，包装 MTU
+   原生 controller。
+2. `tools/translate_page_native.py` 是无需浏览器的直接文件客户端。
+3. `vue-frontend/` 与 `app.py` 是可选编辑器、书架、会话、原子步骤 API 和静态文件服务。
+4. 六阶段端口和 `src/core/page_pipeline.py` 是只跑部分步骤或刻意混合模型的高级路径，不是
+   完整页面的原生质量默认。
 
-源码检出后默认只有 `local_saber` 方案。没有设置 `SABER_REMOTE_CONFIG` 或
-`SABER_PIPELINE_CONFIG` 时，不会注册远程方案，也不会因为导入插件系统而连接 Modal、
-DeepSeek 或其他模型服务。
+源码检出后不会自动部署或调用 Modal/DeepSeek。原生整页客户端必须显式读取非秘密配置文件；
+staged 子系统默认只有 `local_saber`，没有设置 `SABER_REMOTE_CONFIG` 或
+`SABER_PIPELINE_CONFIG` 时也不会注册其远程方案。
 
 Git 不包含 `models/`。完整使用本地检测、OCR、修补前，需要按上游 Release 的说明准备模型
 文件；文档检查、前端开发以及纯契约测试不应为了方便而下载模型。
@@ -164,9 +167,36 @@ python -m flask --app app run --host 127.0.0.1 --port 5000
 旧的整套 MTU/DeepSeek 组合使用 `SABER_REMOTE_CONFIG`，可再由 `SABER_PIPELINE_CONFIG`
 继承或覆盖单个阶段。配置文件只能记录非秘密选项和密钥环境变量名，不能提交真实密钥。
 
-### 不启动浏览器直接生成成品
+### 不启动浏览器直接生成成品（默认原生路径）
 
-完整自动处理不依赖 Vue。选择一个已配置的完整 profile 后，可直接运行：
+先部署或指定一个 `workers/mtu_native/` Worker，再由控制进程的秘密注入机制提供
+`DEEPSEEK_API_KEY`。翻译 API 在控制进程调用，Key 不进入 Modal；不要把值写进 JSON、命令行、
+Shell 历史、Git 或文档。然后运行：
+
+```sh
+python -m tools.translate_page_native \
+  --image page-001.png \
+  --image page-002.png \
+  --output-dir result-batch \
+  --config workers/mtu_native/config.example.json
+```
+
+重复 `--image` 会启用原生批量路径：默认每 4 页一次 GPU 提取、全部文本一次 Translator 调用、
+再每 4 页一次 GPU 成图；可用 `--gpu-batch-size` 在 1～8 之间调整。多页成功后生成 `batch.json`
+及每页子目录；单页仍生成 `clean.png`、`final.png`、`mask.png` 和保留 MTU native regions 的
+`page.json`。
+目标目录已存在时拒绝覆盖；任何一步失败时不发布目标目录。该入口不启动 Flask/Vue，不需要
+人工编辑。
+
+普通调优不需要改代码或重新部署：直接传 `--gpu-batch-size 1..8`。默认值 4 与硬上限 8 的唯一
+代码权威分别是 `DEFAULT_NATIVE_MTU_GPU_BATCH_PAGES`、`MAX_NATIVE_MTU_BATCH_PAGES`，位于
+`src/core/native_mtu_page_contract.py`。若以后要提高硬上限，必须同步更新契约测试和文档、重新
+部署 Worker，并用至少两张公开样图重跑真实批量冒烟。更大的批次会减少远程调用开销，但会增加
+payload、峰值内存和单次执行时间；不要借此修改 MTU 内部算法，也不要默认改成多 GPU 并发。
+
+### 六阶段混合客户端（高级/实验）
+
+需要刻意把不同来源的 detect/OCR/translate/inpaint/render 拼成一条 staged 流程时，可运行：
 
 ```sh
 python -m tools.translate_page \
@@ -178,7 +208,7 @@ python -m tools.translate_page \
 ```
 
 运行前应由当前运营环境把 `DEEPSEEK_API_KEY` 注入该进程；不能把值写进配置、命令行、Shell
-历史、Git 或文档。命令成功后生成 `clean.png`、`final.png`、`page.json`。目标目录已存在时
+历史、Git 或文档。命令成功后生成 staged `clean.png`、`final.png`、`page.json`。目标目录已存在时
 命令拒绝覆盖；任一步失败时不发布目标目录。可用 `--plugins-config` 继承或替换任意一个阶段。
 默认 mask 膨胀 10px、框扩展 20%，与浏览器当前默认值一致；可通过相应参数按固定样图调优。
 
@@ -191,6 +221,7 @@ python tools/validate_docs.py
 python -m unittest tests_backend.test_pipeline_plugins
 python -m unittest tests_backend.test_pipeline_profiles tests_backend.test_stage_backend_registry
 python -m unittest tests_backend.test_remote_pipeline tests_backend.test_mtu_worker_adapter
+python -m unittest tests_backend.test_native_mtu_page_engine tests_backend.test_mtu_native_runtime
 python -m unittest tests_backend.test_page_pipeline tests_backend.test_typeset_client
 cd vue-frontend
 npm run typecheck

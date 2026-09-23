@@ -1,9 +1,50 @@
 # 流水线与数据契约
 
-状态：气泡身份与人工锁为 `CURRENT (v1)`；跨设备工程文档、revision 和
+状态：原生 MTU 整页契约与编辑器气泡身份/人工锁为 `CURRENT`；跨设备工程文档、revision 和
 provenance 为 `TARGET`。
 
-## CURRENT：现有运行时对象
+## CURRENT：Agent 整页契约与原生文档
+
+`saber-native-mtu-page/v3` 是自动完整翻译的主边界，保留单页操作并增加有界批量操作：
+
+- `extract_page` 输入 PNG 和非秘密 detector/OCR/render language 配置，输出同尺寸
+  `working_image`、`raw_mask` 和 `mtu-extraction/v1` 文档；
+- `render_page` 输入上述产物、按稳定区域 ID 提供的译文和非秘密 inpainter/render 配置，
+  输出 `clean_image`、`final_image`、`repair_mask` 和 `mtu-rendered/v1` 文档。
+- `extract_pages` / `render_pages` 在一次 Worker 调用中顺序处理 1～8 页；页面以批次内唯一
+  `page id` 对应，每页仍独立调用上述 MTU controller 半程，不能跨页混用 Context/TextBlock。
+
+提取文档的每个 `regions[]` 记录都包含 `id`、`text` 和完整 `native`
+`TextBlock.to_dict()`。译文 ID 必须与区域 ID 精确相等；缺失、重复或额外 ID 在成图前失败。
+完成 Worker 把 native 字段重建为 MTU `TextBlock` 后调用原 controller 的 mask refinement、
+inpainting 和 rendering，不经过 `BubbleState`。
+
+`src/core/page_engines/` 在两次 Worker 调用之间执行注入的 Translator adapter。批量入口先以
+默认每组 4 页执行有界 GPU 提取，再把全部页面的文本展平成一次 Translator 调用，最后按相同
+上限分组完成 GPU 成图。DeepSeek API Key
+只来自控制进程环境；Modal 请求、响应、配置文件和 artifact 均不携带密钥，GPU 也不等待 API。
+所有 Worker 请求拒绝 key/token/secret 字段并校验固定 MTU revision。当前直接文件客户端
+`tools/translate_page_native.py` 接受重复的 `--image` 参数。单页保持原输出结构；多页整批原子发布
+`batch.json` 和各 `page-NNNN/` 子目录。每页包含：
+
+- `clean.png`：MTU 原生 inpainting 后的页面；
+- `final.png`：MTU 原生 rendering 后的页面；
+- `mask.png`：MTU refined repair mask；
+- `page.json`：artifact 相对名、revision metadata、warning 和完整 native document。
+
+Saber 编辑器将来需要接收该页面时，应由单独的外层 adapter 将 native document 投影为编辑器
+文档；当前原生 CLI 尚未接入这项可选投影。该投影可以有显式降级 warning，但不是原生流水线的
+阶段输入，也不是完整处理的真相源。
+
+2026-09-21 已以两张公开页面真实验证 v3 批量边界：一个 `extract_pages` 调用返回 5+4 个区域，
+一个 `render_pages` 调用完成两页原生写回，均无 runtime warning；提取和完成分别耗时 98.195 秒、
+45.261 秒。测试把 OCR 原文作为译文回填且未调用 DeepSeek，因此它证明批量传输、同一 GPU 容器
+复用和图片写回，不是可见翻译成图，也不证明目标语言翻译质量。纠正后的第二次验证复用同一
+extraction，以 9 段明确简体中文执行一次 `render_pages`；200.111 秒完成、0 warning，肉眼确认
+两页全部检测区域显示中文。由于控制环境没有 API Key，该次也未调用 DeepSeek，只证明译文写回。
+具体批量调优与提高硬上限的步骤由 `workers/mtu_native/README.md` 维护。
+
+## CURRENT：可选 Saber 编辑器运行时对象
 
 前端 `TaskContext` 是单页流水线的聚合状态，当前包含：
 
@@ -14,7 +55,7 @@ provenance 为 `TARGET`。
 - 译文、文本框文字、警告和术语统计；
 - clean image、final image、`bubbleStates` 与保存状态。
 
-Python `BubbleState` 和 TypeScript `BubbleState` 表达可编辑气泡，核心字段包括：
+Python `BubbleState` 和 TypeScript `BubbleState` 只表达可选编辑器中的可编辑气泡，核心字段包括：
 
 - `coords`、`polygon`、`rotationAngle`、位置偏移；
 - `originalText`、`translatedText`、`textboxText`；
@@ -75,9 +116,9 @@ IoU 匹配既有气泡；检测不到的人工锁定气泡仍保留，用户必�
 profile 是否叫 local_saber 判断所有步骤的位置。自定义 OCR/翻译插件仅接收业务输入，
 路由不会转发浏览器保存的供应商凭据/地址。自定义 render 自行实现自动字号，避免绑定本地排版算法。
 
-### CURRENT：无界面整页运行
+### CURRENT：六阶段实验性无界面整页运行
 
-`src/core/page_pipeline.py` 使用同一 profile 和六阶段 registry 在 Python 进程内执行完整页面，
+`src/core/page_pipeline.py` 使用同一 profile 和六阶段 registry 在 Python 进程内执行页面，
 不经过 Flask 或 Vue。它仍保持本文件的不变量：检测数组必须等长、OCR/翻译必须与区域一一对应、
 mask/clean/final 必须保持原图尺寸，任何不对齐都会在 inpaint/render 前失败。
 
@@ -88,7 +129,8 @@ mask/clean/final 必须保持原图尺寸，任何不对齐都会在 inpaint/ren
 - `page.json`：`bubbleStateContractVersion: 1`、profile、各阶段 backend/耗时、相对 artifact 名称和
   `bubble_states`。
 
-这个 `page.json` 是可继续交给 `tools/typeset.py` 或浏览器导入的本地运行结果，不等同于尚未实施的
+这个 staged `page.json` 是可继续交给 `tools/typeset.py` 或浏览器导入的本地运行结果，不等同于原生
+MTU 整页文档，也不等同于尚未实施的
 跨设备 project/page revision schema。核心编排器不写页面存储，也不会绕过人工锁去覆盖既有页面。
 
 ## TARGET：持久工程文档
@@ -122,9 +164,9 @@ mask/clean/final 必须保持原图尺寸，任何不对齐都会在 inpaint/ren
 - 哪些字段被人工修改或锁定；
 - 创建和最近修改的页面 revision。
 
-## 不变量
+## staged 六阶段不变量
 
-所有后端和流水线实现必须保持：
+所有 staged 后端和流水线实现必须保持：
 
 1. OCR 输出数量与输入气泡数量一致；无法识别时返回空结果和错误元数据，不静默缩短数组。
 2. 翻译按稳定 ID 对应，不依赖远程服务返回顺序。
@@ -171,7 +213,7 @@ backend/model provenance。
 
 输出：与输入 region 顺序一一对应的前景/背景 RGB；没有文字时允许空颜色。该步骤不修改 OCR 文本。
 
-### CURRENT：MTU Worker v2（detect / ocr / color / inpaint）
+### CURRENT（staged）：MTU Worker v2（detect / ocr / color / inpaint）
 
 `src/core/mtu_worker_contract.py` 定义跨进程 JSON 契约 `saber-mtu-worker/v2`。detect 请求包含 PNG
 图片和服务器拥有的非敏感检测选项；响应为稳定顺序的 regions、可选 PNG `text_mask`。OCR/color
@@ -215,6 +257,17 @@ lama_mpe inpaint 与 Saber 本地 render。为避免再次索取已不在进程�
 输出的 `clean.png` 相对原图变化 708,420 个像素，`final.png` 相对 clean 图变化 274,778 个像素，
 证明真实图片擦除和嵌字写回已经发生。肉眼检查同时发现明显残字与一处译文越出气泡，故该结果只
 证明六阶段组合、文件发布和像素写回，不是质量验收。
+
+### CURRENT：原生 MTU 对照结论
+
+同一公开页面随后通过固定 revision 的 MTU controller 原生顺序执行 detection、OCR、textline
+merge、mask refinement、inpainting 和 rendering，并只在 MTU 自己的 translation 接缝回放同一组
+既有译文。原生结果的擦除和气泡排版明显优于上面的 staged 组合，并正确保留了 staged 路径错误
+合并进对白的紫色拟声词。该 A/B 证明问题来自中间契约丢失与重新编排，而不是 MTU 原算法。
+
+因此完整自动翻译的默认边界现为 `saber-native-mtu-page/v3`：只在上述已验证的 translation
+接缝拆成提取/完成两个 native 调用。staged Worker v2 仍用于只抽字、只修补、只嵌字和明确的
+混合实验，但不能作为“原生 MTU 效果”的替代证明。
 
 ## 任务与重试
 

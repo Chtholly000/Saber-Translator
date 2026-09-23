@@ -1,4 +1,9 @@
-# MTU Worker and independent clients
+# Staged MTU Worker and independent clients
+
+This is the advanced/partial-processing worker. The default-quality whole-page
+path is documented in [the native MTU worker](../mtu_native/README.md); this
+worker intentionally normalizes individual stages and therefore must not be
+presented as preserving MTU's complete native controller behavior.
 
 Status: CURRENT implementation. The Modal image was deployed and one public
 vertical-page detect/OCR smoke test passed on 2026-09-19; color and inpaint were

@@ -1,7 +1,7 @@
 # MTU 上游集成说明
 
-状态：上游审计和 Worker 适配代码为 `CURRENT`；云镜像已部署，检测/48px OCR/取色/修补已通过
-一张公开竖排样图的真实 GPU 兼容性调用，广泛品质验证仍为 `TARGET`。
+状态：上游审计、staged Worker 和原生 controller wrapper 为 `CURRENT`；旧 staged 云镜像与
+原生 controller 均以一张公开竖排样图完成过真实 GPU 调用，广泛品质验证仍为 `TARGET`。
 
 ## 固定版本
 
@@ -34,45 +34,64 @@ MTU 有较完整的 README、`doc/DEVELOPMENT.md`、工作流说明、双语 Wik
 - `manga_translator/manga_translator.py`：完整流水线编排。
 - `manga_translator/server/routes/translation.py`：完整翻译、导入/导出以及部分处理 API。
 
-MTU 的配置枚举和注册表是内部实现事实，不是 Saber 的用户配置 schema。`TextBlock` 也只能在
-MTU adapter 内部存在。
+MTU 的配置枚举和注册表是内部实现事实，不是 Saber 的持久项目 schema。`TextBlock` 在每个
+native 半程中保持原对象；translation 接缝只允许把完整字段序列化为版本化 native document，
+再由完成 Worker 重建，不能泄漏为跨进程 Python 对象或降级成 BubbleState。
 
 ### v3.0.4 架构审计结论
 
 MTU 的 `detection/__init__.py`、`ocr/__init__.py`、`inpainting/__init__.py` 与
 `translators/__init__.py` 都有“名称/枚举 → 实现类”的内部注册映射，并提供惰性 `prepare`、
 `dispatch`、缓存和 `unload`。`rendering/__init__.py` 同样按 `Renderer` 配置选择渲染器。
-这正是 Saber 可以借鉴的**按阶段注册、惰性加载、worker 内缓存**模式。
+这正是 wrapper 可以直接利用的**原生按阶段选择、惰性加载、worker 内缓存**模式。
 
 但这些注册表是 MTU 代码内的固定枚举，不是可跨进程发现的插件协议；完整执行顺序、可变
 `Context`、中间对象和错误处理仍集中在约五千行的 `manga_translator/manga_translator.py`。
-其 Qt `desktop_qt_ui` 与 editor 模块也直接依赖 MTU `TextBlock` 和配置，属于 MTU 自己的客户端，
-不是可替换的 Saber 编辑器接口。故 MTU 应提供模型实现，不能成为 Saber 的项目控制器、持久化
-格式、自动流水线或浏览器客户端。
+其 Qt `desktop_qt_ui` 与 editor 模块属于 MTU 自己的客户端，不需要带入本项目。MTU controller
+负责一页的原生计算语义；Saber/Oracle 仍负责外部任务、项目和持久化，浏览器仍只是可选客户端。
 
-## 推荐接入方式
+## CURRENT：默认接入方式（原生 controller wrapper）
 
-首选在 Modal Worker 中以固定版本 Python 依赖调用 MTU 的窄模块，并在 worker 边界完成转换：
+完整自动翻译首选在 MTU 原有 translation 接缝两侧包装固定版本 controller：
 
 ```text
-Saber stage request
-  → MTU adapter
-  → pinned MTU detector/OCR/textline merger/inpainter
-  → normalize coordinates, masks, text and styles
-  → Saber stage response
+Agent page/batch request
+  → Modal: pinned _translate_until_translation() once per page
+  → stable IDs + complete TextBlock.to_dict() + raw mask
+  → control-plane Translator adapter
+  → Modal: rehydrate TextBlock + pinned _complete_translation_pipeline() once per page
+  → final artifacts + TextBlock.to_dict() native document
 ```
 
-不推荐把 MTU 的完整 Web/桌面 UI 带进 Saber，也不推荐直接调用它的完整翻译 API后再拆结果，
-因为那会重复 Saber 已有的编排、翻译和项目状态。
+`workers/mtu_native/runtime.py` 只配置 MTU `Config` 并调用原生 controller 的预翻译和完成方法。
+它在接缝处完整序列化/重建 TextBlock，并在 MTU rendering 释放中间图前旁路复制 clean image 与
+refined mask；不替换检测、OCR、合并、mask、修补或排字算法。
+`src/core/native_mtu_page_contract.py` 拒绝请求内凭据、固定 MTU revision，并要求译文 ID 与区域 ID
+精确相等。DeepSeek 等翻译器在控制进程实现同一个 Translator 端口，密钥不进入 Modal。
 
-可以先用完整 MTU API 做一次性对照测试，但生产适配器应使用我们需要的最小阶段入口。
+不带入 MTU Web/Qt UI，也不让 MTU 保存 Saber/Oracle 的书架与项目。controller 的职责止于一页
+计算；外部任务状态、重试、artifact 存储和项目 revision 仍由未来 Oracle 控制面负责。
 
-Saber 的自动 profile 仅在各阶段 adapter 已注册并通过契约测试后才引用它们。当前可选的
-`modal_mtu_deepseek` 组合 MTU 的 detect/OCR/color/inpaint adapter 和独立 DeepSeek 翻译 adapter，
-并保留 Saber renderer。profile 不能直接指向 MTU 完整 controller，也不能把 MTU Qt editor 当作
-profile 的一项。
+图像模块替换通过 MTU 自己的 Config/registry 接缝完成。例如更换固定版本已支持的 OCR 只修改
+`page.ocr.ocr`；其余原生阶段不变。完全新的 OCR 必须在 worker 内适配 MTU OCR 接口并保留
+`Quadrilateral`/TextBlock 下游语义，不能在 OCR 后转换成 Saber boxes/strings 再拼回原生流程。
+翻译模型不受 MTU Config 绑定，只替换控制端 Translator adapter。
 
-### CURRENT：Worker v2 接缝
+2026-09-20 的 v2 单页契约实际验证在 Modal L4 上运行上述精确 runtime：公开 3065×4096 页面提取出四个
+稳定 ID 区域，完整 TextBlock 字段跨过序列化边界后重建，并以已保存译文完成 mask、lama_mpe
+inpaint 和原生 render。最终 PNG 与不跨进程的原生 translation-seam 基准逐像素相同
+（12,554,240 个像素中差异为 0）。该验证没有调用 DeepSeek，也不代表其他模型或样图已经验收。
+2026-09-21 的 v3 契约在不改变上述单页半程的前提下增加 `extract_pages` / `render_pages`：
+一次 Worker 调用顺序处理 1～8 页，控制端只调用一次 Translator。除离线 fixture 外，同日已把
+v3 Worker 部署到 Modal L4，并以两张公开 3066×4096、3065×4096 页面完成一次真实
+`extract_pages` 和一次真实 `render_pages`：分别识别 5、4 个区域，全部无 runtime warning，
+提取 98.195 秒、完成 45.261 秒。测试把 OCR 原文作为译文回填，因此没有调用 DeepSeek，也不把
+这次结果当作肉眼可见的翻译成图或翻译语言质量证明。随后纠正测试：复用同一批真实 extraction，
+把 9 段明确的简体中文通过一次真实 `render_pages` 写回；200.111 秒完成、0 warning，肉眼确认两页
+所有已检测区域均显示中文。该次仍未调用 DeepSeek，因为控制环境没有 API Key；它证明中文译文
+可以通过原生 MTU 排版写回，但不证明模型翻译质量。
+
+## CURRENT（高级/部分处理）：Worker v2 接缝
 
 `src/core/mtu_worker_contract.py`、`src/core/extraction_backends/mtu_modal.py` 和
 `src/core/stage_backends/mtu_*.py` 定义 detect/OCR/color/inpaint 的受测接缝。
@@ -83,8 +102,9 @@ CUDA 依赖组的部署配方。控制进程的 `modal_worker_client.py` 只在�
 
 检测/OCR 现有独立 `ModalMtuDetectorBackend`、`ModalMtuOcrBackend`，旧组合类仅保留兼容。
 `src/core/pipeline_plugins/factories.py` 将 MTU 各阶段暴露为可配置的独立工厂，示例
-`pipeline_plugins/mtu.example.json` 用两个 profile 演示只切换 48px/mocr。新 OCR 可以来自另一
-插件包，仍复用原检测、取色、修补和翻译；不必修改 MTU 或 Saber 的主流程。
+`pipeline_plugins/mtu.example.json` 用两个 profile 演示 staged 路径只切换 48px/mocr。它适合
+只抽字、只修补、只嵌字或明确的混合实验；因为它在阶段间规范化并重建状态，不再作为完整页面
+原生质量的默认路径。
 
 Worker 请求/响应使用 `saber-mtu-worker/v2`；严禁把 API Key、签名 artifact URL、HTTP response、
 Modal object、Pydantic Config 或 `TextBlock` 放进 payload。OCR/color 必须按 `region-N` ID 对齐并完整
@@ -103,8 +123,11 @@ ID 对齐的非空 OCR 结果。冷路径总耗时 80.612 秒。它证明这两�
 
 - 把 `manga_translator/` 整目录复制进本仓库。
 - 从 MTU `main` 动态安装而不固定 commit/tag。
-- 让 MTU `TextBlock`、Pydantic Config 或磁盘工程文件泄漏到 Saber UI/持久层。
+- 让运行中的 MTU Python 对象、Pydantic Config 或磁盘工程文件泄漏到 Saber UI/持久层；版本化
+  native document 是服务契约，不属于此禁令。
 - 让 MTU 自己保存 Saber 书架或覆盖页面 revision。
+- 把 `BubbleState` 或只有框/字符串的响应插入 MTU 原生 OCR 与 mask/inpaint/render 之间。
+- 为了“模块化”重写 MTU 已有 controller、mask refinement、inpainting 或 renderer。
 - 在 Oracle 控制面安装整套 MTU GPU 依赖。
 - 未核对模型权重许可证就打包或持久缓存权重。
 

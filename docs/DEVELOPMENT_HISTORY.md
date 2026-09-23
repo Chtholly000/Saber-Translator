@@ -61,10 +61,45 @@ GPU 计算交给 Modal，文本翻译可用 DeepSeek 等 API。
    个像素，证明擦字与嵌字实际写回图片；肉眼检查仍有明显残字和一处译文越出气泡，因此记录为
    接口/产物验证而非质量验收。该归档运行使用原型默认的 5px mask 膨胀与 0% 框扩展；检查后已将
    CLI 默认值对齐浏览器的 10px/20%，但尚未把调参后的结果写成已验证质量。
+10. 2026-09-20，原生 MTU A/B 与边界纠正：同一公开样图改为保留 MTU `Context`/`TextBlock`，
+    按原 controller 顺序执行 detection、OCR、merge、mask refinement、inpainting 和 rendering，
+    只在原 translation 接缝回放同一组既有译文。原生结果明显改善擦除和气泡排版，并保留了
+    staged 路径误并入对白的紫色拟声词。这证明之前的质量下降来自把原流程拆成 Saber 六阶段、
+    过早降级成 BubbleState 后丢失语义，而不是 MTU 原算法。随后新增 `mtu_native` PageEngine、
+    原生 controller Worker 和 Agent CLI：完整页面默认包装原控制器，六阶段路径降为高级/部分处理
+    用途，编辑器降为可选消费端。
+11. 2026-09-20，translation 接缝正式拆分：原生包装由“一次 Worker 调到底”改为
+    `extract_page → control-plane Translator → render_page`。提取响应保留完整
+    `TextBlock.to_dict()`、raw mask 和稳定区域 ID；完成 Worker 按 ID 写回译文并调用原
+    controller 的 mask/inpaint/render。DeepSeek 凭据因此退出 Modal，GPU 不再等待语言模型 API。
+    同一公开样图再次实际运行精确 v2 runtime，得到 4 个区域和完整成图；与同进程原生基准的
+    12,554,240 个像素逐像素相同。该次使用已保存译文，未调用 DeepSeek。
+12. 2026-09-21，原生多页批量：`saber-native-mtu-page/v3` 保留单页操作，并增加最多 8 页的
+    `extract_pages` / `render_pages`。控制端默认每 4 页一次 GPU 调用，把全部已提取区域交给同一
+    Translator 请求，再按批成图；每页仍分别调用 MTU 原 controller 半程。重复 `--image` 的 CLI
+    原子发布批次目录。随后把 v3 部署到 Modal L4，以两张公开页面执行一次批量提取和一次批量
+    成图；识别 5+4 个区域且无 runtime warning，耗时分别为 98.195 秒和 45.261 秒。该验证用 OCR
+    原文回填，没有调用 DeepSeek，只证明批量契约、同容器模型复用和 MTU 原生写回确实可运行，
+    不能作为可见翻译结果。随后以 9 段明确简体中文纠正验证：复用同一 extraction，只调用一次
+    `render_pages`，200.111 秒完成且 0 warning；肉眼确认两页检测区域均已写成中文。该次仍未调用
+    翻译 API，因此只验证中文嵌字，不评价模型译文质量。
+
+## SUPERSEDED：早期“窄阶段优先”选择
+
+上面第 1、8、9 项描述的“完整页面也应拆成 Saber 六阶段、不要使用 MTU controller”已经被
+第 10 项的真实 A/B 证据取代。它们保留为失败路径的历史证据，不是当前实现指令。
+
+- Superseded by：`ARCHITECTURE.md` 的“主路径是 Agent 调用的原生 MTU 后端”。
+- Reason：阶段边界只保留框、字符串和简化气泡状态，丢失 MTU mask refinement、区域语义和
+  原生 renderer 所需上下文，实际成图显著退化。
+- Current authority：`ARCHITECTURE.md`、`MODULE_BOUNDARIES.md`、`UPSTREAM_MTU.md` 和
+  `workers/mtu_native/README.md`。
 
 ## 保留的决定与待办
 
-采用 MTU 的按阶段注册/惰性加载思路，但模型内部对象不成为 Saber 项目文件格式。
+完整页面采用 MTU 原生 controller wrapper，并直接利用其按阶段注册/惰性加载。只在原生
+translation 接缝将完整 TextBlock 数据版本化后交给控制端 Translator，再重建为 MTU 对象完成渲染；
+不能在中间转换成 BubbleState。
 模型插件和 before/after 中间件插件分别负责执行与加工；前端属于客户端，不能承担模型所有权。
 插件模块由运营者显式选择；配置或代码变更通过重启生效，避免任务中途更换实现。
 
