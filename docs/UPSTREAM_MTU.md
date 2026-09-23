@@ -33,6 +33,8 @@ MTU 有较完整的 README、`doc/DEVELOPMENT.md`、工作流说明、双语 Wik
 - `manga_translator/utils/textblock.py`：MTU 内部文字区域对象。
 - `manga_translator/manga_translator.py`：完整流水线编排。
 - `manga_translator/server/routes/translation.py`：完整翻译、导入/导出以及部分处理 API。
+- `manga_translator/utils/mangalens_detector.py`：MangaLens 气泡分割工具；空白气泡嵌字路径
+  单独调用其气泡类别，不让它代替完整页面的文字检测/OCR controller。
 
 MTU 的配置枚举和注册表是内部实现事实，不是 Saber 的持久项目 schema。`TextBlock` 在每个
 native 半程中保持原对象；translation 接缝只允许把完整字段序列化为版本化 native document，

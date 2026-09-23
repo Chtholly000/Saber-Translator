@@ -25,6 +25,14 @@ render_page / render_pages
 The worker never converts native regions to `BubbleState` and does not
 reimplement MTU algorithms.
 
+An additive, separate `detect_bubbles` operation now wraps pinned MTU's
+MangaLens balloon detector for the blank-page lettering path. It does not
+change `extract_page(s)` or `render_page(s)` and does not invoke OCR,
+translation, inpainting or the native page renderer. The control process maps
+the detected slots and supplied text to the existing Saber renderer. See
+[`BLANK_BUBBLE_PAGE.md`](../../docs/BLANK_BUBBLE_PAGE.md) for the light install,
+CLI, replacement port and real-page quality limits.
+
 ## What is replaceable
 
 - `page.detector` and `page.ocr` select MTU-compatible extraction modules.

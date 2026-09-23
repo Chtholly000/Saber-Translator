@@ -21,6 +21,7 @@
 | 文档 | 负责回答 |
 | --- | --- |
 | [DEVELOPMENT_SETUP.md](./DEVELOPMENT_SETUP.md) | 从零准备源码环境、启动前后端、配置插件以及各验证层实际证明什么 |
+| [BLANK_BUBBLE_PAGE.md](./BLANK_BUBBLE_PAGE.md) | 不跑 OCR/翻译，把指定文字写进空白漫画气泡；轻量安装、实测边界与更换检测器 |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 系统现在怎样运行，未来浏览器、Oracle、Modal、模型 API 怎样分工 |
 | [MODULE_BOUNDARIES.md](./MODULE_BOUNDARIES.md) | 每个模块拥有什么、允许依赖什么、禁止依赖什么 |
 | [PIPELINE_CONTRACTS.md](./PIPELINE_CONTRACTS.md) | 页面、气泡、原子步骤、重试和人工编辑保护规则 |

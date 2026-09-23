@@ -52,6 +52,15 @@ translation 接缝暂停一次，并分别调用原 controller 的预翻译与�
 下游需要的文字列、方向、概率和颜色等语义，不能把中间状态降成 Saber 的框与字符串再重建。
 Modal 只是图像计算执行位置；DeepSeek 是控制端 Translator 的一个实现。
 
+## CURRENT：空白气泡页是独立的嵌字路径
+
+已有空白对白框、且文字由 Agent 或调用者提供时，不应强迫页面经过 OCR、翻译和去字。
+`tools/letter_blank_page.py` 使用 `BubbleSlotDetector` 从原图提取候选框，按稳定框 ID 匹配文字，
+再交给 Saber 现有 CPU renderer 生成 PNG。当前有固定 MTU MangaLens 的 Modal GPU 适配器和本机
+明暗轮廓适配器；两者均可由新检框实现替换，不改变映射/嵌字。它不插入上面的原生 MTU 半程，
+也不改变完整翻译的默认路径。实页验证与误报边界见
+[BLANK_BUBBLE_PAGE.md](./BLANK_BUBBLE_PAGE.md)。
+
 ## CURRENT：Saber 浏览器与六阶段组合是可选客户端/高级路径
 
 仓库仍包含一个本地 Flask 应用配合 Vue 单页前端：

@@ -12,6 +12,9 @@ Read the root `AGENTS.md`, `docs/ARCHITECTURE.md`, and
   raw mask; `render_page` and bounded `render_pages` rehydrate them, inject
   ID-matched translations,
   and resumes the original controller completion path.
+- The separate `detect_bubbles` operation is only a thin call to pinned MTU's
+  MangaLens balloon detector for blank-page lettering. It must not alter the
+  native extract/render controller operations or become an OCR replacement.
 - Pinned MTU `TextBlock.to_dict()` counter-rotates angled `lines` for its
   project format. The completion adapter must invert that transform using
   the serialized `angle` and `center` before constructing a live TextBlock;

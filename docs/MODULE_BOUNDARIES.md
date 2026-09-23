@@ -10,6 +10,7 @@
 | Vue 浏览器客户端与状态 | `vue-frontend/src/` | 用户交互、即时预览、当前页面编辑状态 | 版本化 API 类型、领域字段 | 模型加载、云凭据、服务器文件路径 |
 | 浏览器流水线编排 | `vue-frontend/src/composables/translation/core/` | 可选编辑器中的步骤顺序、模式、页面上下文投影 | 原子步骤客户端、稳定编辑器类型 | 默认整页后端、具体 OCR/GPU SDK |
 | 原生整页引擎 | `src/core/page_engines/`、`src/core/native_mtu_page_contract.py`、`tools/translate_page_native.py` | Agent 单页/有界批量入口、提取/翻译/完成编排、页面与区域 ID、版本契约、原子文件产物 | 惰性传输 client、Translator adapter、MTU-native 文档 | MTU 图像算法重实现、Vue、凭据持久化、BubbleState 中间态 |
+| 空白气泡嵌字 | `src/core/blank_bubble_page.py`、`tools/letter_blank_page.py` | 候选框、原图绑定、框 ID→已有文字映射、独立成品 | 可替换 `BubbleSlotDetector`、现有 Saber render 端口 | OCR/翻译/去字、改变原生 MTU 翻译半程、书架或 Oracle 状态 |
 | 原生 MTU Worker | `workers/mtu_native/` | 固定版本 controller 的提取/完成包装、MTU Config 映射、TextBlock 序列化与重建 | pinned MTU `MangaTranslator` 与内部对象 | 调用翻译 API、Saber 阶段重编排、项目/书架真相、请求内凭据 |
 | 六阶段实验编排 | `src/core/page_pipeline.py`、`tools/translate_page.py` | profile 解析、BubbleState 组装、混合阶段实验和文件产物 | 阶段端口/注册表、编辑器领域类型 | 声称等同原生 MTU 质量、Flask/Vue、凭据持久化 |
 | Flask 路由 | `src/app/api/` | HTTP 验证、错误映射、调用应用服务 | 端口/服务、序列化器 | 模型实现细节、长期任务状态 |

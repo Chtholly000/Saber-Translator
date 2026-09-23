@@ -22,6 +22,10 @@ from src.core.mtu_worker_contract import (
     decode_worker_png,
     encode_worker_png,
 )
+from src.core.blank_bubble_contract import (
+    BLANK_BUBBLE_CONTRACT_VERSION,
+    validate_bubble_options,
+)
 from src.core.native_mtu_page_contract import (
     EXTRACT_OPTION_GROUPS,
     MAX_NATIVE_MTU_BATCH_PAGES,
@@ -322,8 +326,9 @@ def _validate_options(options: Any, groups: set[str]) -> Mapping[str, Any]:
 
 
 class MtuNativeWorkerRuntime:
-    def __init__(self, engine=None):
+    def __init__(self, engine=None, bubble_detector=None):
         self.engine = engine or NativeMtuControllerAdapter()
+        self.bubble_detector = bubble_detector
 
     @staticmethod
     def _batch_pages(value: Any) -> list[Mapping[str, Any]]:
@@ -390,6 +395,24 @@ class MtuNativeWorkerRuntime:
     async def execute(self, payload):
         if not isinstance(payload, Mapping):
             raise MtuWorkerContractError("Worker 请求必须是对象")
+        if payload.get("contract_version") == BLANK_BUBBLE_CONTRACT_VERSION:
+            if set(payload) != {"contract_version", "operation", "image", "options"} or payload.get("operation") != "detect_bubbles":
+                raise MtuWorkerContractError("气泡检测请求字段无效")
+            options = validate_bubble_options(payload.get("options"))
+            image = decode_worker_png(payload.get("image"))
+            if self.bubble_detector is None:
+                from workers.mtu_native.bubble_slots import MangaLensBubbleSlotDetector
+
+                self.bubble_detector = MangaLensBubbleSlotDetector()
+            slots = self.bubble_detector.detect(image, options)
+            return {
+                "contract_version": BLANK_BUBBLE_CONTRACT_VERSION,
+                "operation": "detect_bubbles",
+                "mtu_revision": PINNED_MTU_REVISION,
+                "image_width": image.width,
+                "image_height": image.height,
+                "slots": slots,
+            }
         if payload.get("contract_version") != NATIVE_MTU_PAGE_CONTRACT_VERSION:
             raise MtuWorkerContractError("Worker 契约版本无效")
         operation = payload.get("operation")

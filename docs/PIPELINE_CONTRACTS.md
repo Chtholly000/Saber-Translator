@@ -3,6 +3,23 @@
 状态：原生 MTU 整页契约与编辑器气泡身份/人工锁为 `CURRENT`；跨设备工程文档、revision 和
 provenance 为 `TARGET`。
 
+## CURRENT：空白气泡嵌字契约
+
+`saber-blank-bubbles/v1` 是独立 Worker 检框请求，不复用 `saber-native-mtu-page/v3` 的
+提取/完成操作。请求只含 `contract_version`、`operation=detect_bubbles`、PNG 图片和
+`confidence`/`image_size`；响应含同版本、固定 MTU revision、原图尺寸与最多 128 个
+`coords + confidence` 候选。它没有 OCR、译文、mask、修补图或 API 凭据。
+
+控制端的 `blank-bubble-slots/v1` 文件绑定原图 SHA-256 与尺寸，保存候选框、内缩文字框、
+稳定框 ID 和几何阅读顺序。重用时原图字节必须完全相同；框和文字框必须在图内，且文字框在
+对应框内。文字输入为同序数组或 ID→文字对象，数量/ID 必须精确匹配所选框，拒绝少给、
+多给或重复 ID。控制端把它们转成现有 `BubbleState`，通过原 Saber render 端口输出 `final.png`；
+不更改原生 MTU 的 TextBlock 或主路径。`layout.json` 保留最终排版输入；输出目录原子发布、
+不覆盖已存在目录。更换检框模型只需实现 `BubbleSlotDetector` 的原图坐标输出。
+
+该路径不保证检测框全对；阅读顺序是几何启发式。准确关联应使用 ID 映射和预览校验，
+必要时由 Agent 修订候选框。详见 [BLANK_BUBBLE_PAGE.md](./BLANK_BUBBLE_PAGE.md)。
+
 ## CURRENT：Agent 整页契约与原生文档
 
 `saber-native-mtu-page/v3` 是自动完整翻译的主边界，保留单页操作并增加有界批量操作：

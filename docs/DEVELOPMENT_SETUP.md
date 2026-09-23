@@ -14,6 +14,9 @@
 3. `vue-frontend/` 与 `app.py` 是可选编辑器、书架、会话、原子步骤 API 和静态文件服务。
 4. 六阶段端口和 `src/core/page_pipeline.py` 是只跑部分步骤或刻意混合模型的高级路径，不是
    完整页面的原生质量默认。
+5. `tools/letter_blank_page.py` 是独立的空白气泡嵌字客户端：已有文字按框 ID 写回，
+   不跑 OCR/翻译/去字。仅此路径可安装 `requirements-blank-page.txt`，详见
+   [BLANK_BUBBLE_PAGE.md](./BLANK_BUBBLE_PAGE.md)。
 
 源码检出后不会自动部署或调用 Modal/DeepSeek。原生整页客户端必须显式读取非秘密配置文件；
 staged 子系统默认只有 `local_saber`，没有设置 `SABER_REMOTE_CONFIG` 或

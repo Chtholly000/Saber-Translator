@@ -4,6 +4,7 @@ Deploying or invoking this app can incur Modal charges. Importing this module
 does not deploy it. Translation APIs run outside this GPU worker.
 """
 
+import os
 from pathlib import Path
 
 import modal
@@ -40,13 +41,15 @@ for relative in (
     "workers/__init__.py",
     "workers/mtu_native/__init__.py",
     "workers/mtu_native/runtime.py",
+    "workers/mtu_native/bubble_slots.py",
+    "src/core/blank_bubble_contract.py",
     "src/core/native_mtu_page_contract.py",
     "src/core/mtu_worker_contract.py",
     "src/core/ocr_types.py",
 ):
     image = image.add_local_file(ROOT / relative, "/root/" + relative)
 
-app = modal.App("saber-mtu-native-f0307a0")
+app = modal.App(os.environ.get("SABER_MTU_NATIVE_APP_NAME", "saber-mtu-native-f0307a0"))
 
 
 @app.cls(
