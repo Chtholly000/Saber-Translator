@@ -53,6 +53,8 @@ def main() -> None:
     parser.add_argument("--inset-ratio", type=float, default=0.12)
     parser.add_argument("--confidence", type=float, default=0.25)
     parser.add_argument("--image-size", type=int, default=1600)
+    parser.add_argument("--contour-min-dark-border", type=float, default=0.65,
+                        help="Contour/hybrid border threshold; lower values recover faint bubbles but add false positives")
     parser.add_argument("--font-family")
     parser.add_argument("--font-size", type=int)
     parser.add_argument("--render-profile", default="local_saber")
@@ -74,8 +76,9 @@ def main() -> None:
         document = _read_json(args.slots)
         slots = validate_slot_document(document, image, image_bytes)
     else:
+        contour = HighContrastContourSlotDetector(min_dark_border=args.contour_min_dark_border)
         if args.detector == "contour":
-            detector = HighContrastContourSlotDetector()
+            detector = contour
         else:
             config = _read_json(args.config)
             model = ModalMangaLensSlotDetector(
@@ -83,12 +86,18 @@ def main() -> None:
                 confidence=args.confidence,
                 image_size=args.image_size,
             )
-            detector = model if args.detector == "mangalens" else HybridBubbleSlotDetector(model)
+            detector = model if args.detector == "mangalens" else HybridBubbleSlotDetector(model, contour)
         document = make_slot_document(
             image, image_bytes, detector,
             reading_order=args.reading_order,
             inset_ratio=args.inset_ratio,
         )
+        document["detector_options"] = {
+            **({"confidence": args.confidence, "image_size": args.image_size}
+               if args.detector in {"mangalens", "hybrid"} else {}),
+            **({"contour_min_dark_border": args.contour_min_dark_border}
+               if args.detector in {"contour", "hybrid"} else {}),
+        }
         slots = validate_slot_document(document, image, image_bytes)
 
     if not slots:

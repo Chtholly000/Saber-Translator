@@ -52,6 +52,13 @@ class HighContrastContourSlotDetector:
     ):
         if not 0 < min_area_ratio < max_area_ratio < 1:
             raise ValueError("轮廓区域比例无效")
+        if (
+            isinstance(min_dark_border, bool)
+            or not isinstance(min_dark_border, (int, float))
+            or not math.isfinite(min_dark_border)
+            or not 0 <= min_dark_border <= 1
+        ):
+            raise ValueError("min_dark_border 必须是 0 到 1 的有限数字")
         self.min_area_ratio = min_area_ratio
         self.max_area_ratio = max_area_ratio
         self.min_fill_ratio = min_fill_ratio

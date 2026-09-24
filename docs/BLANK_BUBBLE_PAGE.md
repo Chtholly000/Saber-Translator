@@ -42,6 +42,16 @@ Worker 的默认应用名。`--detector hybrid` 会合并 MangaLens 和本机轮
 其中存在明显误报和漏报；模型分数与轮廓启发式分数不可当作同一概率。不要按这些分数无检查地
 批量写入。推荐让 Agent 查看 `slots-preview.png` 后按 ID 选择，或替换检测器。
 
+边界较浅或不闭合的白色框可在候选生成时使用 `--contour-min-dark-border`（默认 `0.65`，
+范围 `0..1`）。第二张固定样页中的窄框测得 `0.5467`，设为 `0.54` 可恢复它，但也会加入
+旧字/杂形候选，因此不能直接给所有候选写字。`--confidence`、`--image-size` 和这个轮廓
+门槛分别调节模型与本地候选。实际选项会写进 `slots.json` 的 `detector_options`；重跑检测后
+候选 ID 可能变化，必须重新核对文字 ID。
+同一公开样页用 `--detector hybrid --confidence 0.03 --image-size 2560
+--contour-min-dark-border 0.54` 得到 18 个候选；Agent 检查后选出 7 个空白框，包含原先漏掉的
+窄框，全部嵌字可见，选中候选框外没有像素改变。其余候选含人物、旧字或杂形，故这不代表
+无需审查的全自动检框。
+
 `page-slots/slots.json` 保存原图 SHA-256、尺寸、候选框、文字框、ID 和检测来源。
 只有原图字节完全相同才可重用；检测只需跑一次。`slots-preview.png` 用红色标候选框、
 蓝色标文字安全框。Agent 可直接修订该 JSON 的 `coords`、`text_coords`，但必须保持边界有效。

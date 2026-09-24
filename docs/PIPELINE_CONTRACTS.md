@@ -16,6 +16,8 @@ provenance 为 `TARGET`。
 多给或重复 ID。控制端把它们转成现有 `BubbleState`，通过原 Saber render 端口输出 `final.png`；
 不更改原生 MTU 的 TextBlock 或主路径。`layout.json` 保留最终排版输入；输出目录原子发布、
 不覆盖已存在目录。更换检框模型只需实现 `BubbleSlotDetector` 的原图坐标输出。
+检测选项作为可选 `detector_options` 随槽位文件保存；改变门槛会重新生成候选和 ID，
+旧的按 ID 文字映射不得不经核对直接复用。
 
 该路径不保证检测框全对；阅读顺序是几何启发式。准确关联应使用 ID 映射和预览校验，
 必要时由 Agent 修订候选框。详见 [BLANK_BUBBLE_PAGE.md](./BLANK_BUBBLE_PAGE.md)。

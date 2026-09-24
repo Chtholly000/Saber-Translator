@@ -200,6 +200,32 @@ class BlankBubblePageTests(unittest.TestCase):
         ).detect(image)
         self.assertEqual(len(merged), 2)
 
+    def test_weak_border_threshold_is_explicit_and_recorded_by_cli(self):
+        image = Image.new("RGB", (400, 240), "white")
+        draw = ImageDraw.Draw(image)
+        draw.ellipse((50, 25, 170, 145), outline="black", width=8)
+        draw.arc((50, 25, 170, 145), -90, 90, fill=(180, 180, 180), width=8)
+        self.assertEqual(HighContrastContourSlotDetector().detect(image), [])
+        self.assertEqual(len(HighContrastContourSlotDetector(min_dark_border=0.4).detect(image)), 1)
+        for invalid in (-0.1, 1.1, float("nan")):
+            with self.assertRaisesRegex(ValueError, "min_dark_border"):
+                HighContrastContourSlotDetector(min_dark_border=invalid)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "weak-border.png"
+            image.save(source)
+            result = root / "result"
+            process = subprocess.run([
+                sys.executable, "-m", "tools.letter_blank_page",
+                "--image", str(source), "--detector", "contour",
+                "--contour-min-dark-border", "0.4",
+                "--output-dir", str(result),
+            ], capture_output=True, text=True)
+            self.assertEqual(process.returncode, 0, process.stderr)
+            document = json.loads((result / "slots.json").read_text())
+            self.assertEqual(len(document["slots"]), 1)
+            self.assertEqual(document["detector_options"], {"contour_min_dark_border": 0.4})
+
 
 if __name__ == "__main__":
     unittest.main()
